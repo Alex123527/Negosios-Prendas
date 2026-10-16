@@ -1,5 +1,6 @@
 from datetime import datetime
 import io
+import openpyxl
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import pandas as pd
@@ -7,7 +8,7 @@ import sqlite3
 import streamlit as st
 
 st.set_page_config(
-    page_title="PROYECTO X - Sistema de Gestión y Gastos",
+    page_title="PROYECTO X - Sistema de Gestión Integral",
     page_icon="🛍️",
     layout="wide",
 )
@@ -59,6 +60,7 @@ if not st.session_state["autenticado"]:
 conn = sqlite3.connect("negocio_prendas.db", check_same_thread=False)
 cursor = conn.cursor()
 
+# Tablas actualizadas e integradas
 cursor.execute(
     """
     CREATE TABLE IF NOT EXISTS transacciones (
@@ -69,17 +71,11 @@ cursor.execute(
 )
 cursor.execute(
     """
-    CREATE TABLE IF NOT EXISTS inventario (
+    CREATE TABLE IF NOT EXISTS pedidos_inventario (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nombre TEXT, categoria TEXT, talla TEXT, costo REAL, porcentaje_ganancia REAL, precio_venta REAL, stock INTEGER, fecha TEXT
-    )
-"""
-)
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS pedidos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cliente TEXT, prenda TEXT, cantidad INTEGER, estado TEXT, tipo_venta TEXT, fecha TEXT
+        cliente TEXT, modelo_prenda TEXT, categoria TEXT, talle TEXT, 
+        cantidad INTEGER, costo REAL, margen_ganancia REAL, precio_venta REAL, 
+        stock_inicial INTEGER, canal TEXT, estado TEXT, fecha TEXT
     )
 """
 )
@@ -109,11 +105,10 @@ menu = st.sidebar.selectbox(
     [
         "Control de Gastos Personales",
         "Registrar Movimiento (Caja Negocio)",
-        "Calculadora y Precios",
-        "Control de Pedidos",
+        "Gestión de Pedidos y Precios",
         "Gestión de Deudas (Fiados)",
         "Gráficos y Finanzas",
-        "Exportar Reportes (PDF)",
+        "Exportar Reportes (PDF / Excel)",
     ],
 )
 
@@ -153,12 +148,10 @@ if menu == "Control de Gastos Personales":
   m3.metric("🐖 AHORRO", f"${ahorro_p:,.0f}")
 
   st.markdown("---")
-
   col_izq, col_der = st.columns([2, 1])
 
   with col_izq:
     st.subheader("📝 Registrar Nuevo Gasto")
-
     with st.form("form_gasto_personal", clear_on_submit=True):
       f_col1, f_col2 = st.columns(2)
       with f_col1:
@@ -198,11 +191,7 @@ if menu == "Control de Gastos Personales":
             type=["png", "jpg", "jpeg", "pdf"],
         )
 
-      btn_guardar_gasto = st.form_submit_button(
-          "💾 Guardar Gasto en Planilla"
-      )
-
-      if btn_guardar_gasto:
+      if st.form_submit_button("💾 Guardar Gasto en Planilla"):
         nombre_archivo = (
             archivo_comprobante.name if archivo_comprobante else "Sin archivo"
         )
@@ -232,68 +221,32 @@ if menu == "Control de Gastos Personales":
     )
     if not df_gp.empty:
       st.dataframe(df_gp, use_container_width=True)
-      st.markdown(
-          f"<h4 style='text-align: right; background-color: #2e7d32;"
-          f" padding: 10px; border-radius: 5px;'>TOTAL GASTOS: ${total_gastos_p:,.2f}</h4>",
-          unsafe_allow_html=True,
-      )
     else:
-      st.info("Aún no hay gastos registrados en la planilla.")
+      st.info("Aún no hay gastos registrados.")
 
   with col_der:
     st.subheader("🏷️ Categorías")
-    categorias_lista = [
-        ("🏠 Vivienda", "Vivienda"),
-        ("🛒 Comida", "Comida"),
-        ("🚗 Transporte", "Transporte"),
-        ("💡 Servicios", "Servicios"),
-        ("🎟️ Ocio", "Ocio"),
-        ("❤️ Salud", "Salud"),
-        ("📚 Estudios", "Estudios"),
-        ("🟢 Otros", "Otros"),
-    ]
-
-    for label_cat, cat_nombre in categorias_lista:
+    for cat in [
+        "Vivienda",
+        "Comida",
+        "Transporte",
+        "Servicios",
+        "Ocio",
+        "Salud",
+        "Estudios",
+        "Otros",
+    ]:
       df_cat = pd.read_sql_query(
           "SELECT SUM(monto) as total FROM gastos_personales WHERE categoria = ?",
           conn,
-          params=(cat_nombre,),
+          params=(cat,),
       )
       tot_cat = (
           df_cat["total"].iloc[0]
           if not df_cat.empty and df_cat["total"].iloc[0] is not None
           else 0.0
       )
-      st.write(f"**{label_cat}**: ${tot_cat:,.0f}")
-
-    st.markdown("---")
-    st.subheader("📝 Notas del Mes")
-    st.text_input("Nota 1", value="Reducir gastos de kiosco")
-    st.text_input("Nota 2", value="Ahorrar 5% más")
-    st.text_input("Nota 3", value="")
-
-  st.markdown("---")
-
-  col_inf1, col_inf2 = st.columns(2)
-  with col_inf1:
-    st.subheader("📊 Resumen del Mes")
-    st.write(f"• Ingresos totales: **${total_ingresos_p:,.2f}**")
-    st.write(f"• Gastos totales: **${total_gastos_p:,.2f}**")
-    st.write(f"• Ahorro neto: **${ahorro_p:,.2f}**")
-
-  with col_inf2:
-    st.subheader("🎯 Meta de Ahorro")
-    objetivo_ahorro = st.number_input(
-        "Mi objetivo de ahorro este mes ($):",
-        min_value=1.0,
-        value=100000.0,
-        step=10000.0,
-    )
-    porcentaje_meta = min(
-        100.0, (ahorro_p / objetivo_ahorro) * 100 if objetivo_ahorro > 0 else 0
-    )
-    st.progress(int(porcentaje_meta))
-    st.write(f"¡Vas al **{porcentaje_meta:.1f}%** de tu objetivo! 💚")
+      st.write(f"• **{cat}**: ${tot_cat:,.0f}")
 
 elif menu == "Registrar Movimiento (Caja Negocio)":
   st.title("💰 Control de Caja: Negocio de Prendas")
@@ -326,15 +279,28 @@ elif menu == "Registrar Movimiento (Caja Negocio)":
           (tipo, categoria, monto, descripcion, fecha_actual),
       )
       conn.commit()
-      st.success("¡Movimiento guardado!")
+      st.success("¡Movimiento guardado en caja!")
 
-elif menu == "Calculadora y Precios":
-  st.title("🏷️ Planilla de Precios y Margen Automático")
-  with st.form("form_prendas", clear_on_submit=True):
-    col1, col2 = st.columns(2)
-    with col1:
-      nombre_prenda = st.text_input("Modelo de Prenda")
-      cat_prenda = st.selectbox(
+  st.markdown("---")
+  st.subheader("📋 Historial de Caja")
+  df_caja_hist = pd.read_sql_query(
+      "SELECT * FROM transacciones ORDER BY id DESC", conn
+  )
+  if not df_caja_hist.empty:
+    st.dataframe(df_caja_hist, use_container_width=True)
+
+elif menu == "Gestión de Pedidos y Precios":
+  st.title("🏷️📋 Panel Unificado: Precios y Control de Pedidos")
+  st.write(
+      "Administra tus prendas, márgenes, stock y pedidos en un solo flujo."
+  )
+
+  with st.form("form_pedidos_precios", clear_on_submit=True):
+    c1, c2, c3 = st.columns(3)
+    with c1:
+      cliente = st.text_input("Cliente")
+      modelo_prenda = st.text_input("Modelo de Prenda")
+      categoria = st.selectbox(
           "Categoría",
           [
               "Remeras y Tops",
@@ -344,63 +310,61 @@ elif menu == "Calculadora y Precios":
               "Accesorios",
           ],
       )
-      talla = st.selectbox("Talle", ["XS", "S", "M", "L", "XL", "Único"])
-    with col2:
-      costo = st.number_input("Costo ($)", min_value=0.0, format="%.2f")
-      porcentaje = st.number_input(
-          "Margen Ganancia (%)", min_value=0.0, value=50.0
+    with c2:
+      talle = st.selectbox("Talle", ["XS", "S", "M", "L", "XL", "Único"])
+      cantidad = st.number_input("Cantidad", min_value=1, value=1)
+      costo = st.number_input("Costo Unitario ($)", min_value=0.0, format="%.2f")
+    with c3:
+      margen_ganancia = st.number_input(
+          "Margen de Ganancia (%)", min_value=0.0, value=50.0
       )
-      stock_inicial = st.number_input("Stock Inicial", min_value=1, value=1)
-    precio_sugerido = costo + (costo * (porcentaje / 100))
-    st.info(f"💡 Precio Sugerido: **${precio_sugerido:,.2f}**")
-    if st.form_submit_button("💾 Guardar Prenda"):
+      stock_inicial = st.number_input("Stock Inicial", min_value=0, value=1)
+      canal = st.selectbox("Canal de Venta", ["Online (Redes)", "Físico"])
+      estado = st.selectbox(
+          "Estado del Pedido",
+          ["Pendiente", "Confirmado", "Entregado", "Cancelado"],
+      )
+
+    precio_venta_sugerido = costo + (costo * (margen_ganancia / 100))
+    st.info(
+        f"💡 Precio de Venta Sugerido: **${precio_venta_sugerido:,.2f}** por unidad"
+    )
+
+    if st.form_submit_button("💾 Guardar Pedido y Prenda"):
       fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
       cursor.execute(
-          "INSERT INTO inventario (nombre, categoria, talla, costo,"
-          " porcentaje_ganancia, precio_venta, stock, fecha) VALUES (?, ?, ?,"
-          " ?, ?, ?, ?, ?)",
+          """
+                INSERT INTO pedidos_inventario 
+                (cliente, modelo_prenda, categoria, talle, cantidad, costo, margen_ganancia, precio_venta, stock_inicial, canal, estado, fecha)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
           (
-              nombre_prenda,
-              cat_prenda,
-              talla,
+              cliente,
+              modelo_prenda,
+              categoria,
+              talle,
+              cantidad,
               costo,
-              porcentaje,
-              precio_sugerido,
+              margen_ganancia,
+              precio_venta_sugerido,
               stock_inicial,
+              canal,
+              estado,
               fecha_actual,
           ),
       )
       conn.commit()
-      st.success("¡Prenda guardada!")
-  df_inv = pd.read_sql_query("SELECT * FROM inventario ORDER BY id DESC", conn)
-  if not df_inv.empty:
-    st.dataframe(df_inv, use_container_width=True)
+      st.success("¡Registro unificado guardado exitosamente!")
 
-elif menu == "Control de Pedidos":
-  st.title("📋 Gestión de Pedidos")
-  with st.form("form_pedido", clear_on_submit=True):
-    col1, col2 = st.columns(2)
-    with col1:
-      cliente = st.text_input("Cliente")
-      prenda = st.text_input("Prenda")
-      cantidad = st.number_input("Cantidad", min_value=1, value=1)
-    with col2:
-      tipo_venta = st.selectbox("Canal", ["Online (Redes)", "Físico"])
-      estado = st.selectbox(
-          "Estado", ["Pendiente", "Confirmado", "Entregado", "Cancelado"]
-      )
-    if st.form_submit_button("📥 Registrar Pedido"):
-      fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-      cursor.execute(
-          "INSERT INTO pedidos (cliente, prenda, cantidad, estado, tipo_venta,"
-          " fecha) VALUES (?, ?, ?, ?, ?, ?)",
-          (cliente, prenda, cantidad, estado, tipo_venta, fecha_actual),
-      )
-      conn.commit()
-      st.success("¡Pedido registrado!")
-  df_pedidos = pd.read_sql_query("SELECT * FROM pedidos ORDER BY id DESC", conn)
-  if not df_pedidos.empty:
-    st.dataframe(df_pedidos, use_container_width=True)
+  st.markdown("---")
+  st.subheader("📋 Registro General de Pedidos y Precios")
+  df_unificado = pd.read_sql_query(
+      "SELECT * FROM pedidos_inventario ORDER BY id DESC", conn
+  )
+  if not df_unificado.empty:
+    st.dataframe(df_unificado, use_container_width=True)
+  else:
+    st.info("Aún no hay registros en este módulo.")
 
 elif menu == "Gestión de Deudas (Fiados)":
   st.title("🤝 Control de Cuentas Corrientes (Fiados)")
@@ -434,48 +398,112 @@ elif menu == "Gestión de Deudas (Fiados)":
     st.dataframe(df_deudas, use_container_width=True)
 
 elif menu == "Gráficos y Finanzas":
-  st.title("📊 Análisis Financiero Global")
-  df = pd.read_sql_query(
+  st.title("📊 Análisis Financiero Global del Negocio")
+  df_trans = pd.read_sql_query(
       "SELECT * FROM transacciones ORDER BY id DESC", conn
   )
-  if not df.empty:
-    entradas = df[df["tipo"] == "Entrada (Venta/Cobro)"]["monto"].sum()
-    salidas = df[df["tipo"] == "Salida (Gasto/Deuda)"]["monto"].sum()
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Entradas", f"${entradas:,.2f}")
-    c2.metric("Salidas", f"${salidas:,.2f}")
-    c3.metric("Balance", f"${entradas - salidas:,.2f}")
-    st.bar_chart(df.groupby("tipo")["monto"].sum())
-  else:
-    st.info("Sin movimientos financieros registrados.")
+  df_pedidos_fin = pd.read_sql_query(
+      "SELECT * FROM pedidos_inventario", conn
+  )
 
-elif menu == "Exportar Reportes (PDF)":
-  st.title("📄 Generador de Reportes PDF")
-  df = pd.read_sql_query("SELECT * FROM transacciones", conn)
-  if not df.empty and st.button("Generar PDF de Caja"):
-    buffer = io.BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
-    p.drawString(50, height - 50, "PROYECTO X - Reporte Financiero")
-    y = height - 90
-    for idx, row in df.iterrows():
-      p.drawString(
-          50,
-          y,
-          f"{row['tipo']} | {row['categoria']} | ${row['monto']} |"
-          f" {row['fecha']}",
-      )
-      y -= 20
-      if y < 50:
-        p.showPage()
-        y = height - 50
-    p.save()
-    buffer.seek(0)
-    st.download_button(
-        "⬇️ Descargar Reporte PDF",
-        data=buffer,
-        file_name="reporte.pdf",
-        mime="application/pdf",
+  if not df_trans.empty or not df_pedidos_fin.empty:
+    entradas = (
+        df_trans[df_trans["tipo"] == "Entrada (Venta/Cobro)"]["monto"].sum()
+        if not df_trans.empty
+        else 0.0
     )
+    salidas = (
+        df_trans[df_trans["tipo"] == "Salida (Gasto/Deuda)"]["monto"].sum()
+        if not df_trans.empty
+        else 0.0
+    )
+
+    # Ingresos estimados por pedidos registrados
+    ventas_estimadas = (
+        (
+            df_pedidos_fin["cantidad"] * df_pedidos_fin["precio_venta"]
+        ).sum()
+        if not df_pedidos_fin.empty
+        else 0.0
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("📥 Entradas Caja", f"${entradas:,.2f}")
+    c2.metric("📤 Salidas Caja", f"${salidas:,.2f}")
+    c3.metric("🛍️ Ventas Catálogo", f"${ventas_estimadas:,.2f}")
+    c4.metric("⚖️ Balance Neto", f"${entradas - salidas:,.2f}")
+
+    st.markdown("---")
+    if not df_trans.empty:
+      st.subheader("Gráfico de Movimientos de Caja")
+      st.bar_chart(df_trans.groupby("tipo")["monto"].sum())
   else:
-    st.warning("No hay suficientes datos para exportar.")
+    st.info("Sin datos financieros suficientes para graficar.")
+
+elif menu == "Exportar Reportes (PDF / Excel)":
+  st.title("📄 Exportar Reportes (PDF y Excel)")
+
+  tab_pdf, tab_excel = st.tabs(["📄 Reporte PDF", "📊 Exportar a Excel"])
+
+  with tab_pdf:
+    df_rep = pd.read_sql_query("SELECT * FROM transacciones", conn)
+    if not df_rep.empty and st.button("Generar PDF de Transacciones"):
+      buffer = io.BytesIO()
+      p = canvas.Canvas(buffer, pagesize=letter)
+      width, height = letter
+      p.drawString(
+          50, height - 50, "PROYECTO X - Reporte Financiero de Transacciones"
+      )
+      y = height - 90
+      for idx, row in df_rep.iterrows():
+        p.drawString(
+            50,
+            y,
+            f"{row['tipo']} | {row['categoria']} | ${row['monto']} |"
+            f" {row['fecha']}",
+        )
+        y -= 20
+        if y < 50:
+          p.showPage()
+          y = height - 50
+      p.save()
+      buffer.seek(0)
+      st.download_button(
+          "⬇️ Descargar Reporte PDF",
+          data=buffer,
+          file_name="reporte_financiero.pdf",
+          mime="application/pdf",
+      )
+    else:
+      st.warning("No hay transacciones registradas para exportar a PDF.")
+
+  with tab_excel:
+    st.write(
+        "Descarga tus bases de datos completas en formato Excel (.xlsx) con"
+        " un solo clic."
+    )
+    if st.button("📥 Generar Archivo Excel"):
+      output = io.BytesIO()
+      with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        pd.read_sql_query("SELECT * FROM transacciones", conn).to_excel(
+            writer, index=False, sheet_name="Caja Negocio"
+        )
+        pd.read_sql_query("SELECT * FROM pedidos_inventario", conn).to_excel(
+            writer, index=False, sheet_name="Pedidos e Inventario"
+        )
+        pd.read_sql_query("SELECT * FROM gastos_personales", conn).to_excel(
+            writer, index=False, sheet_name="Gastos Personales"
+        )
+        pd.read_sql_query("SELECT * FROM deudas", conn).to_excel(
+            writer, index=False, sheet_name="Deudas y Fiados"
+        )
+      output.seek(0)
+
+      st.download_button(
+          label="⬇️ Descargar Excel Completo (PROYECTO X)",
+          data=output,
+          file_name="ProyectoX_Reporte_Completo.xlsx",
+          mime=(
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          ),
+      )
