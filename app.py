@@ -60,7 +60,6 @@ if not st.session_state["autenticado"]:
 conn = sqlite3.connect("negocio_prendas.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Tablas actualizadas e integradas
 cursor.execute(
     """
     CREATE TABLE IF NOT EXISTS transacciones (
@@ -105,7 +104,7 @@ menu = st.sidebar.selectbox(
     [
         "Control de Gastos Personales",
         "Registrar Movimiento (Caja Negocio)",
-        "Gestión de Pedidos y Precios",
+        "PRECIOS Y CONTROL DE PEDIDOS",
         "Gestión de Deudas (Fiados)",
         "Gráficos y Finanzas",
         "Exportar Reportes (PDF / Excel)",
@@ -289,10 +288,11 @@ elif menu == "Registrar Movimiento (Caja Negocio)":
   if not df_caja_hist.empty:
     st.dataframe(df_caja_hist, use_container_width=True)
 
-elif menu == "Gestión de Pedidos y Precios":
-  st.title("🏷️📋 Panel Unificado: Precios y Control de Pedidos")
+elif menu == "PRECIOS Y CONTROL DE PEDIDOS":
+  st.title("🏷️ PRECIOS Y CONTROL DE PEDIDOS")
   st.write(
-      "Administra tus prendas, márgenes, stock y pedidos en un solo flujo."
+      "Gestiona tus artículos, calcula precios de venta y administra pedidos"
+      " con opción de modificación."
   )
 
   with st.form("form_pedidos_precios", clear_on_submit=True):
@@ -326,11 +326,13 @@ elif menu == "Gestión de Pedidos y Precios":
       )
 
     precio_venta_sugerido = costo + (costo * (margen_ganancia / 100))
-    st.info(
-        f"💡 Precio de Venta Sugerido: **${precio_venta_sugerido:,.2f}** por unidad"
+    st.markdown(
+        f"<h3 style='color: #4CAF50;'>💵 PRECIO DE VENTA CALCULADO:"
+        f" ${precio_venta_sugerido:,.2f}</h3>",
+        unsafe_allow_html=True,
     )
 
-    if st.form_submit_button("💾 Guardar Pedido y Prenda"):
+    if st.form_submit_button("💾 Guardar Nuevo Pedido / Prenda"):
       fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
       cursor.execute(
           """
@@ -354,15 +356,111 @@ elif menu == "Gestión de Pedidos y Precios":
           ),
       )
       conn.commit()
-      st.success("¡Registro unificado guardado exitosamente!")
+      st.success("¡Registro guardado exitosamente!")
+      st.rerun()
 
   st.markdown("---")
-  st.subheader("📋 Registro General de Pedidos y Precios")
+  st.subheader(
+      "📋 Registro General de Pedidos y Precios (Modificar o Borrar)"
+  )
+
   df_unificado = pd.read_sql_query(
       "SELECT * FROM pedidos_inventario ORDER BY id DESC", conn
   )
+
   if not df_unificado.empty:
     st.dataframe(df_unificado, use_container_width=True)
+
+    st.markdown("### ⚙️ Administrar Registro (Editar o Eliminar)")
+    ids_disponibles = df_unificado["id"].tolist()
+    id_seleccionado = st.selectbox(
+        "Seleccione el ID del registro a modificar o borrar:", ids_disponibles
+    )
+
+    # Buscar datos del registro seleccionado
+    fila_sel = df_unificado[df_unificado["id"] == id_seleccionado].iloc[0]
+
+    with st.form("form_editar_pedido"):
+      st.write(f"Editando Registro ID: **{id_seleccionado}**")
+      e_cliente = st.text_input("Cliente", value=fila_sel["cliente"])
+      e_modelo = st.text_input(
+          "Modelo de Prenda", value=fila_sel["modelo_prenda"]
+      )
+      e_cat = st.text_input("Categoría", value=fila_sel["categoria"])
+      e_talle = st.text_input("Talle", value=fila_sel["talle"])
+      e_cant = st.number_input(
+          "Cantidad", min_value=1, value=int(fila_sel["cantidad"])
+      )
+      e_costo = st.number_input(
+          "Costo Unitario ($)",
+          min_value=0.0,
+          value=float(fila_sel["costo"]),
+          format="%.2f",
+      )
+      e_margen = st.number_input(
+          "Margen de Ganancia (%)",
+          min_value=0.0,
+          value=float(fila_sel["margen_ganancia"]),
+      )
+      e_stock = st.number_input(
+          "Stock Inicial", min_value=0, value=int(fila_sel["stock_inicial"])
+      )
+      e_canal = st.text_input("Canal", value=fila_sel["canal"])
+      e_estado = st.selectbox(
+          "Estado del Pedido",
+          ["Pendiente", "Confirmado", "Entregado", "Cancelado"],
+          index=(
+              ["Pendiente", "Confirmado", "Entregado", "Cancelado"].index(
+                  fila_sel["estado"]
+              )
+              if fila_sel["estado"]
+              in ["Pendiente", "Confirmado", "Entregado", "Cancelado"]
+              else 0
+          ),
+      )
+
+      nuevo_precio_calc = e_costo + (e_costo * (e_margen / 100))
+      st.info(f"💡 Nuevo Precio Calculado: ${nuevo_precio_calc:,.2f}")
+
+      col_b1, col_b2 = st.columns(2)
+      btn_actualizar = col_b1.form_submit_button(
+          "🔄 Actualizar Registro Seleccionado"
+      )
+      btn_borrar = col_b2.form_submit_button("🗑️ Borrar Este Registro")
+
+      if btn_actualizar:
+        cursor.execute(
+            """
+                UPDATE pedidos_inventario 
+                SET cliente=?, modelo_prenda=?, categoria=?, talle=?, cantidad=?, costo=?, margen_ganancia=?, precio_venta=?, stock_inicial=?, canal=?, estado=?
+                WHERE id=?
+            """,
+            (
+                e_cliente,
+                e_modelo,
+                e_cat,
+                e_talle,
+                e_cant,
+                e_costo,
+                e_margen,
+                nuevo_precio_calc,
+                e_stock,
+                e_canal,
+                e_estado,
+                id_seleccionado,
+            ),
+        )
+        conn.commit()
+        st.success("¡Registro actualizado correctamente!")
+        st.rerun()
+
+      if btn_borrar:
+        cursor.execute(
+            "DELETE FROM pedidos_inventario WHERE id=?", (id_seleccionado,)
+        )
+        conn.commit()
+        st.success("¡Registro eliminado correctamente!")
+        st.rerun()
   else:
     st.info("Aún no hay registros en este módulo.")
 
@@ -417,8 +515,6 @@ elif menu == "Gráficos y Finanzas":
         if not df_trans.empty
         else 0.0
     )
-
-    # Ingresos estimados por pedidos registrados
     ventas_estimadas = (
         (
             df_pedidos_fin["cantidad"] * df_pedidos_fin["precio_venta"]
