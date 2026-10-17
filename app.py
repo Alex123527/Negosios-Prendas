@@ -8,63 +8,39 @@ import sqlite3
 import streamlit as st
 
 st.set_page_config(
-    page_title="PROYECTO X - Sistema Futurista", page_icon="⚡", layout="wide"
+    page_title="PROYECTO X - Estilo Planner", page_icon="🌿", layout="wide"
 )
 
-# Selector de Tema / Paleta de Colores en la barra lateral
-st.sidebar.markdown(
-    "<h3 style='color: #00ffcc; text-shadow: 0 0 10px rgba(0,255,204,0.5);'>"
-    "⚡ PROYECTO X</h3>",
-    unsafe_allow_html=True,
-)
-estilo_visual = st.sidebar.selectbox(
-    "🎨 Paleta Futurista / Tema",
-    [
-        "Cyberpunk Neón (Oscuro & Cyan)",
-        "Matrix Dark (Negro & Verde Esmeralda)",
-        "Minimalista Titanio (Plata & Azul)",
-    ],
-)
-
-# Definición de estilos CSS según el tema elegido
-if estilo_visual == "Cyberpunk Neón (Oscuro & Cyan)":
-  bg_color = "#080c14"
-  card_bg = "#111827"
-  text_color = "#f3f4f6"
-  accent_color = "#00ffcc"
-  secondary_accent = "#ff007f"
-elif estilo_visual == "Matrix Dark (Negro & Verde Esmeralda)":
-  bg_color = "#020403"
-  card_bg = "#0c1713"
-  text_color = "#e6f4ea"
-  accent_color = "#00e676"
-  secondary_accent = "#00b0ff"
-else:  # Minimalista Titanio
-  bg_color = "#0f172a"
-  card_bg = "#1e293b"
-  text_color = "#f8fafc"
-  accent_color = "#38bdf8"
-  secondary_accent = "#818cf8"
-
+# Estética Planner (Tonos Verdes Claros, Limpios y Profesionales inspirados en la plantilla)
 st.markdown(
-    f"""
+    """
     <style>
-    .main {{ background-color: {bg_color}; color: {text_color}; }}
-    h1, h2, h3 {{ color: {accent_color} !important; font-family: 'Segoe UI', Roboto, sans-serif; text-shadow: 0 0 12px rgba(0,255,204,0.2); }}
-    .stButton>button {{
-        background: linear-gradient(135deg, {accent_color}, {secondary_accent});
-        color: #000000;
-        border-radius: 6px;
+    .main { background-color: #f7f9f6; color: #2c3e2d; }
+    h1, h2, h3 { color: #3b533c !important; font-family: 'Segoe UI', sans-serif; }
+    
+    /* Contenedores estilo Planner */
+    .planner-card {
+        background-color: #ffffff;
+        border: 1px solid #d4e0d2;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(59, 83, 60, 0.05);
+        margin-bottom: 20px;
+    }
+    
+    /* Botones personalizados estilo planner */
+    .stButton>button {
+        background-color: #4f6f52;
+        color: white;
+        border-radius: 8px;
         padding: 0.5rem 1rem;
         font-weight: bold;
         border: none;
-        box-shadow: 0 0 10px rgba(0,255,204,0.3);
         transition: 0.3s;
-    }}
-    .stButton>button:hover {{
-        opacity: 0.85;
-        box-shadow: 0 0 20px rgba(0,255,204,0.6);
-    }}
+    }
+    .stButton>button:hover {
+        background-color: #3b533c;
+    }
     </style>
 """,
     unsafe_allow_html=True,
@@ -75,8 +51,8 @@ if "autenticado" not in st.session_state:
 
 if not st.session_state["autenticado"]:
   st.markdown(
-      f"<h2 style='text-align: center; color: {accent_color};'>PROYECTO X -"
-      " Acceso Seguro</h2>",
+      "<h2 style='text-align: center; color: #4f6f52;'>PROYECTO X - Acceso"
+      " Seguro</h2>",
       unsafe_allow_html=True,
   )
   col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
@@ -134,6 +110,9 @@ cursor.execute(
 )
 conn.commit()
 
+st.sidebar.markdown(
+    "<h3 style='color: #4f6f52;'>🌿 PROYECTO X</h3>", unsafe_allow_html=True
+)
 menu = st.sidebar.selectbox(
     "Menú Principal",
     [
@@ -151,8 +130,8 @@ if st.sidebar.button("🔒 Cerrar Sesión", use_container_width=True):
   st.rerun()
 
 if menu == "Control de Gastos Personales":
-  st.title("🌿 Control de Gastos Personales")
-  st.write("Gestión inteligente y automatizada de finanzas.")
+  st.title("🌿 CONTROL DE GASTOS")
+  st.write("ORGANIZÁ • CONTROLÁ • AHORRÁ")
 
   df_gastos_calc = pd.read_sql_query(
       "SELECT SUM(monto) as total FROM gastos_personales", conn
@@ -176,8 +155,8 @@ if menu == "Control de Gastos Personales":
   ahorro_p = max(0.0, total_ingresos_p - total_gastos_p)
 
   m1, m2, m3 = st.columns(3)
-  m1.metric("💰 INGRESOS", f"${total_ingresos_p:,.0f}")
-  m2.metric("🛒 GASTOS", f"${total_gastos_p:,.0f}")
+  m1.metric("💰 INGRESOS TOTALES", f"${total_ingresos_p:,.0f}")
+  m2.metric("🛒 GASTOS TOTALES", f"${total_gastos_p:,.0f}")
   m3.metric("🐖 AHORRO", f"${ahorro_p:,.0f}")
 
   st.markdown("---")
@@ -185,7 +164,7 @@ if menu == "Control de Gastos Personales":
     f_col1, f_col2 = st.columns(2)
     with f_col1:
       fecha_gasto = st.date_input("Fecha", value=datetime.now())
-      descripcion_gasto = st.text_input("Descripción")
+      descripcion_gasto = st.text_input("Descripción (Ej. Supermercado)")
       categoria_gasto = st.selectbox(
           "Categoría",
           [
@@ -345,9 +324,7 @@ elif menu == "Registrar Movimiento (Caja Negocio)":
 
 elif menu == "PRECIOS Y CONTROL DE PEDIDOS":
   st.title("🏷️ PRECIOS Y CONTROL DE PEDIDOS")
-  st.write(
-      "Sistema integrado de cálculo de precios, inventario y flujo de pedidos."
-  )
+  st.write("Gestión unificada de catálogo, precios y pedidos de prendas.")
 
   with st.form("form_pedidos_precios", clear_on_submit=True):
     c1, c2, c3 = st.columns(3)
@@ -381,7 +358,7 @@ elif menu == "PRECIOS Y CONTROL DE PEDIDOS":
 
     precio_venta_sugerido = costo + (costo * (margen_ganancia / 100))
     st.markdown(
-        f"<h3 style='color: {accent_color}; text-shadow: 0 0 10px rgba(0,255,204,0.3);'>💵 PRECIO DE VENTA CALCULADO:"
+        f"<h3 style='color: #4f6f52;'>💵 PRECIO DE VENTA CALCULADO:"
         f" ${precio_venta_sugerido:,.2f}</h3>",
         unsafe_allow_html=True,
     )
