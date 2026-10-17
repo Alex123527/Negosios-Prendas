@@ -18,11 +18,20 @@ cursor.execute(
     )
 """
 )
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS notas_planner (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        mes TEXT, notas TEXT, meta_ahorro REAL, objetivo_monto REAL
+    )
+"""
+)
 conn.commit()
 
-st.title("🌿 Control de Gastos Personales")
+st.title("🌿 CONTROL DE GASTOS PERSONALES")
 st.write("ORGANIZÁ • CONTROLÁ • AHORRÁ")
 
+# Cálculos financieros rápidos
 df_gastos_calc = pd.read_sql_query(
     "SELECT SUM(monto) as total FROM gastos_personales", conn
 )
@@ -45,72 +54,134 @@ total_ingresos_p = (
 )
 ahorro_p = max(0.0, total_ingresos_p - total_gastos_p)
 
+# Tarjetas Métricas Superiores estilo Planner
 m1, m2, m3 = st.columns(3)
 m1.metric("💰 INGRESOS TOTALES", f"${total_ingresos_p:,.0f}")
 m2.metric("🛒 GASTOS TOTALES", f"${total_gastos_p:,.0f}")
 m3.metric("🐖 AHORRO", f"${ahorro_p:,.0f}")
 
 st.markdown("---")
-with st.form("form_gasto_personal", clear_on_submit=True):
-  f_col1, f_col2 = st.columns(2)
-  with f_col1:
-    fecha_gasto = st.date_input("Fecha", value=datetime.now())
-    descripcion_gasto = st.text_input("Descripción (Ej. Supermercado)")
-    categoria_gasto = st.selectbox(
-        "Categoría",
-        [
-            "Vivienda",
-            "Comida",
-            "Transporte",
-            "Servicios",
-            "Ocio",
-            "Salud",
-            "Estudios",
-            "Otros",
-        ],
-    )
-  with f_col2:
-    metodo_pago = st.selectbox(
-        "Método de Pago",
-        [
-            "Efectivo",
-            "Débito",
-            "Débito automático",
-            "Transferencia",
-            "Tarjeta de crédito",
-        ],
-    )
-    monto_gasto = st.number_input(
-        "Monto ($)", min_value=0.0, format="%.2f", step=100.0
-    )
-    archivo_comprobante = st.file_uploader(
-        "Comprobante (Imagen/PDF)", type=["png", "jpg", "jpeg", "pdf"]
-    )
 
-  if st.form_submit_button("💾 Guardar Gasto"):
-    nombre_archivo = (
-        archivo_comprobante.name if archivo_comprobante else "Sin archivo"
+# Distribución en dos columnas principales (Formulario + Categorías/Notas estilo Planner)
+col_izq, col_der = st.columns([2, 1])
+
+with col_izq:
+  st.subheader("📝 Registrar Nuevo Gasto")
+  with st.form("form_gasto_personal", clear_on_submit=True):
+    f_col1, f_col2 = st.columns(2)
+    with f_col1:
+      fecha_gasto = st.date_input("Fecha", value=datetime.now())
+      descripcion_gasto = st.text_input("Descripción (Ej. Supermercado)")
+      categoria_gasto = st.selectbox(
+          "Categoría",
+          [
+              "Vivienda",
+              "Comida",
+              "Transporte",
+              "Servicios",
+              "Ocio",
+              "Salud",
+              "Estudios",
+              "Otros",
+          ],
+      )
+    with f_col2:
+      metodo_pago = st.selectbox(
+          "Método de Pago",
+          [
+              "Efectivo",
+              "Débito",
+              "Débito automático",
+              "Transferencia",
+              "Tarjeta de crédito",
+          ],
+      )
+      monto_gasto = st.number_input(
+          "Monto ($)", min_value=0.0, format="%.2f", step=100.0
+      )
+      archivo_comprobante = st.file_uploader(
+          "Comprobante (Imagen/PDF)", type=["png", "jpg", "jpeg", "pdf"]
+      )
+
+    if st.form_submit_button("💾 Guardar Gasto en Planilla"):
+      nombre_archivo = (
+          archivo_comprobante.name if archivo_comprobante else "Sin archivo"
+      )
+      cursor.execute(
+          """
+                INSERT INTO gastos_personales (fecha, descripcion, categoria, metodo_pago, monto, comprobante_nombre)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """,
+          (
+              str(fecha_gasto),
+              descripcion_gasto,
+              categoria_gasto,
+              metodo_pago,
+              monto_gasto,
+              nombre_archivo,
+          ),
+      )
+      conn.commit()
+      st.success("¡Gasto registrado con éxito!")
+      st.rerun()
+
+with col_der:
+  st.subheader("🏷️ Total por Categoría")
+  categorias_lista = [
+      "Vivienda",
+      "Comida",
+      "Transporte",
+      "Servicios",
+      "Ocio",
+      "Salud",
+      "Estudios",
+      "Otros",
+  ]
+  for cat in categorias_lista:
+    df_cat = pd.read_sql_query(
+        "SELECT SUM(monto) as total FROM gastos_personales WHERE categoria = ?",
+        conn,
+        params=(cat,),
     )
-    cursor.execute(
-        """
-            INSERT INTO gastos_personales (fecha, descripcion, categoria, metodo_pago, monto, comprobante_nombre)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (
-            str(fecha_gasto),
-            descripcion_gasto,
-            categoria_gasto,
-            metodo_pago,
-            monto_gasto,
-            nombre_archivo,
-        ),
+    tot_cat = (
+        df_cat["total"].iloc[0]
+        if not df_cat.empty and df_cat["total"].iloc[0] is not None
+        else 0.0
     )
-    conn.commit()
-    st.success("¡Gasto registrado con éxito!")
-    st.rerun()
+    st.write(f"• **{cat}**: ${tot_cat:,.0f}")
 
 st.markdown("---")
-st.subheader("📋 Planilla de Gastos")
+
+# Sección de Metas de Ahorro y Notas del Mes estilo Agenda
+col_meta1, col_meta2 = st.columns(2)
+
+with col_meta1:
+  st.subheader("🎯 Meta de Ahorro del Mes")
+  meta_objetivo = st.number_input(
+      "Definir Objetivo de Ahorro ($):", min_value=1.0, value=100000.0, step=5000.0
+  )
+  porcentaje_ahorro = min(100, int((ahorro_p / meta_objetivo) * 100))
+  st.progress(
+      porcentaje_ahorro / 100,
+      text=f"Progreso de Ahorro: {porcentaje_ahorro}% (Logrado: ${ahorro_p:,.0f}"
+      f" / Meta: ${meta_objetivo:,.0f})",
+  )
+  if porcentaje_ahorro >= 100:
+    st.success("¡Felicitaciones! ¡Alcanzaste tu meta de ahorro este mes! ❤️")
+  else:
+    st.info("¡Vos podés lograrlo! Constancia y disciplina.")
+
+with col_meta2:
+  st.subheader("📌 Notas del Mes")
+  nota_personal = st.text_area(
+      "Escribe tus recordatorios o metas financieras:",
+      placeholder="Ej. Reducir gastos en kiosco, Ahorrar 5% más...",
+  )
+  if st.button("Guardar Nota"):
+    st.success("¡Nota guardada en tu planner personal!")
+
+st.markdown("---")
+st.subheader("📋 Planilla General de Movimientos y Administrador")
 df_gp = pd.read_sql_query(
     "SELECT * FROM gastos_personales ORDER BY id DESC", conn
 )
