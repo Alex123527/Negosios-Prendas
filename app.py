@@ -8,25 +8,63 @@ import sqlite3
 import streamlit as st
 
 st.set_page_config(
-    page_title="PROYECTO X - Sistema de Gestión Integral",
-    page_icon="🛍️",
-    layout="wide",
+    page_title="PROYECTO X - Sistema Futurista", page_icon="⚡", layout="wide"
 )
 
+# Selector de Tema / Paleta de Colores en la barra lateral
+st.sidebar.markdown(
+    "<h3 style='color: #00ffcc; text-shadow: 0 0 10px rgba(0,255,204,0.5);'>"
+    "⚡ PROYECTO X</h3>",
+    unsafe_allow_html=True,
+)
+estilo_visual = st.sidebar.selectbox(
+    "🎨 Paleta Futurista / Tema",
+    [
+        "Cyberpunk Neón (Oscuro & Cyan)",
+        "Matrix Dark (Negro & Verde Esmeralda)",
+        "Minimalista Titanio (Plata & Azul)",
+    ],
+)
+
+# Definición de estilos CSS según el tema elegido
+if estilo_visual == "Cyberpunk Neón (Oscuro & Cyan)":
+  bg_color = "#080c14"
+  card_bg = "#111827"
+  text_color = "#f3f4f6"
+  accent_color = "#00ffcc"
+  secondary_accent = "#ff007f"
+elif estilo_visual == "Matrix Dark (Negro & Verde Esmeralda)":
+  bg_color = "#020403"
+  card_bg = "#0c1713"
+  text_color = "#e6f4ea"
+  accent_color = "#00e676"
+  secondary_accent = "#00b0ff"
+else:  # Minimalista Titanio
+  bg_color = "#0f172a"
+  card_bg = "#1e293b"
+  text_color = "#f8fafc"
+  accent_color = "#38bdf8"
+  secondary_accent = "#818cf8"
+
 st.markdown(
-    """
+    f"""
     <style>
-    .main { background-color: #0e1117; }
-    h1, h2, h3 { color: #f0f2f6; font-family: 'Segoe UI', sans-serif; }
-    .stButton>button {
-        background-color: #2e7d32;
-        color: white;
-        border-radius: 8px;
+    .main {{ background-color: {bg_color}; color: {text_color}; }}
+    h1, h2, h3 {{ color: {accent_color} !important; font-family: 'Segoe UI', Roboto, sans-serif; text-shadow: 0 0 12px rgba(0,255,204,0.2); }}
+    .stButton>button {{
+        background: linear-gradient(135deg, {accent_color}, {secondary_accent});
+        color: #000000;
+        border-radius: 6px;
         padding: 0.5rem 1rem;
         font-weight: bold;
         border: none;
-    }
-    .stButton>button:hover { background-color: #1b5e20; }
+        box-shadow: 0 0 10px rgba(0,255,204,0.3);
+        transition: 0.3s;
+    }}
+    .stButton>button:hover {{
+        opacity: 0.85;
+        box-shadow: 0 0 20px rgba(0,255,204,0.6);
+    }}
     </style>
 """,
     unsafe_allow_html=True,
@@ -37,8 +75,8 @@ if "autenticado" not in st.session_state:
 
 if not st.session_state["autenticado"]:
   st.markdown(
-      "<h2 style='text-align: center; color: #2e7d32;'>PROYECTO X - Acceso"
-      " Seguro</h2>",
+      f"<h2 style='text-align: center; color: {accent_color};'>PROYECTO X -"
+      " Acceso Seguro</h2>",
       unsafe_allow_html=True,
   )
   col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
@@ -96,9 +134,6 @@ cursor.execute(
 )
 conn.commit()
 
-st.sidebar.markdown(
-    "<h3 style='color: #2e7d32;'>🛍️ PROYECTO X</h3>", unsafe_allow_html=True
-)
 menu = st.sidebar.selectbox(
     "Menú Principal",
     [
@@ -117,7 +152,7 @@ if st.sidebar.button("🔒 Cerrar Sesión", use_container_width=True):
 
 if menu == "Control de Gastos Personales":
   st.title("🌿 Control de Gastos Personales")
-  st.write("Organizá • Controlá • Ahorrá")
+  st.write("Gestión inteligente y automatizada de finanzas.")
 
   df_gastos_calc = pd.read_sql_query(
       "SELECT SUM(monto) as total FROM gastos_personales", conn
@@ -128,7 +163,6 @@ if menu == "Control de Gastos Personales":
       and df_gastos_calc["total"].iloc[0] is not None
       else 0.0
   )
-
   df_caja_ing = pd.read_sql_query(
       "SELECT SUM(monto) as total FROM transacciones WHERE tipo='Entrada (Venta/Cobro)'",
       conn,
@@ -142,110 +176,103 @@ if menu == "Control de Gastos Personales":
   ahorro_p = max(0.0, total_ingresos_p - total_gastos_p)
 
   m1, m2, m3 = st.columns(3)
-  m1.metric("💰 INGRESOS TOTALES", f"${total_ingresos_p:,.0f}")
-  m2.metric("🛒 GASTOS TOTALES", f"${total_gastos_p:,.0f}")
+  m1.metric("💰 INGRESOS", f"${total_ingresos_p:,.0f}")
+  m2.metric("🛒 GASTOS", f"${total_gastos_p:,.0f}")
   m3.metric("🐖 AHORRO", f"${ahorro_p:,.0f}")
 
   st.markdown("---")
-  col_izq, col_der = st.columns([2, 1])
+  with st.form("form_gasto_personal", clear_on_submit=True):
+    f_col1, f_col2 = st.columns(2)
+    with f_col1:
+      fecha_gasto = st.date_input("Fecha", value=datetime.now())
+      descripcion_gasto = st.text_input("Descripción")
+      categoria_gasto = st.selectbox(
+          "Categoría",
+          [
+              "Vivienda",
+              "Comida",
+              "Transporte",
+              "Servicios",
+              "Ocio",
+              "Salud",
+              "Estudios",
+              "Otros",
+          ],
+      )
+    with f_col2:
+      metodo_pago = st.selectbox(
+          "Método de Pago",
+          [
+              "Efectivo",
+              "Débito",
+              "Débito automático",
+              "Transferencia",
+              "Tarjeta de crédito",
+          ],
+      )
+      monto_gasto = st.number_input(
+          "Monto ($)", min_value=0.0, format="%.2f", step=100.0
+      )
+      archivo_comprobante = st.file_uploader(
+          "Comprobante (Imagen/PDF)", type=["png", "jpg", "jpeg", "pdf"]
+      )
 
-  with col_izq:
-    st.subheader("📝 Registrar Nuevo Gasto")
-    with st.form("form_gasto_personal", clear_on_submit=True):
-      f_col1, f_col2 = st.columns(2)
-      with f_col1:
-        fecha_gasto = st.date_input("Fecha", value=datetime.now())
-        descripcion_gasto = st.text_input(
-            "Descripción (Ej. Supermercado, Luz)"
-        )
-        categoria_gasto = st.selectbox(
-            "Categoría",
-            [
-                "Vivienda",
-                "Comida",
-                "Transporte",
-                "Servicios",
-                "Ocio",
-                "Salud",
-                "Estudios",
-                "Otros",
-            ],
-        )
-      with f_col2:
-        metodo_pago = st.selectbox(
-            "Método de Pago",
-            [
-                "Efectivo",
-                "Débito",
-                "Débito automático",
-                "Transferencia",
-                "Tarjeta de crédito",
-            ],
-        )
-        monto_gasto = st.number_input(
-            "Monto ($)", min_value=0.0, format="%.2f", step=100.0
-        )
-        archivo_comprobante = st.file_uploader(
-            "Cargar Factura o Transferencia (Imagen/PDF)",
-            type=["png", "jpg", "jpeg", "pdf"],
-        )
+    if st.form_submit_button("💾 Guardar Gasto"):
+      nombre_archivo = (
+          archivo_comprobante.name if archivo_comprobante else "Sin archivo"
+      )
+      cursor.execute(
+          """
+                INSERT INTO gastos_personales (fecha, descripcion, categoria, metodo_pago, monto, comprobante_nombre)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """,
+          (
+              str(fecha_gasto),
+              descripcion_gasto,
+              categoria_gasto,
+              metodo_pago,
+              monto_gasto,
+              nombre_archivo,
+          ),
+      )
+      conn.commit()
+      st.success("¡Gasto registrado!")
+      st.rerun()
 
-      if st.form_submit_button("💾 Guardar Gasto en Planilla"):
-        nombre_archivo = (
-            archivo_comprobante.name if archivo_comprobante else "Sin archivo"
-        )
+  st.markdown("---")
+  st.subheader("📋 Planilla de Gastos")
+  df_gp = pd.read_sql_query(
+      "SELECT * FROM gastos_personales ORDER BY id DESC", conn
+  )
+  if not df_gp.empty:
+    st.dataframe(df_gp, use_container_width=True)
+
+    st.markdown("### ⚙️ ADMINISTRAR REGISTRO")
+    ids_gp = df_gp["id"].tolist()
+    sel_gp = st.selectbox("Seleccione ID de Gasto a administrar:", ids_gp)
+    fila_gp = df_gp[df_gp["id"] == sel_gp].iloc[0]
+
+    with st.form("form_edit_gp"):
+      eg_desc = st.text_input("Descripción", value=fila_gp["descripcion"])
+      eg_monto = st.number_input(
+          "Monto ($)", value=float(fila_gp["monto"]), format="%.2f"
+      )
+      c_bt1, c_bt2 = st.columns(2)
+      if c_bt1.form_submit_button("🔄 Actualizar Gasto"):
         cursor.execute(
-            """
-                    INSERT INTO gastos_personales (fecha, descripcion, categoria, metodo_pago, monto, comprobante_nombre)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """,
-            (
-                str(fecha_gasto),
-                descripcion_gasto,
-                categoria_gasto,
-                metodo_pago,
-                monto_gasto,
-                nombre_archivo,
-            ),
+            "UPDATE gastos_personales SET descripcion=?, monto=? WHERE id=?",
+            (eg_desc, eg_monto, sel_gp),
         )
         conn.commit()
-        st.success("¡Gasto registrado correctamente!")
+        st.success("¡Actualizado con éxito!")
         st.rerun()
-
-    st.markdown("---")
-    st.subheader("📋 Planilla de Movimientos del Mes")
-    df_gp = pd.read_sql_query(
-        "SELECT id, fecha, descripcion, categoria, metodo_pago, monto, comprobante_nombre FROM gastos_personales ORDER BY id DESC",
-        conn,
-    )
-    if not df_gp.empty:
-      st.dataframe(df_gp, use_container_width=True)
-    else:
-      st.info("Aún no hay gastos registrados.")
-
-  with col_der:
-    st.subheader("🏷️ Categorías")
-    for cat in [
-        "Vivienda",
-        "Comida",
-        "Transporte",
-        "Servicios",
-        "Ocio",
-        "Salud",
-        "Estudios",
-        "Otros",
-    ]:
-      df_cat = pd.read_sql_query(
-          "SELECT SUM(monto) as total FROM gastos_personales WHERE categoria = ?",
-          conn,
-          params=(cat,),
-      )
-      tot_cat = (
-          df_cat["total"].iloc[0]
-          if not df_cat.empty and df_cat["total"].iloc[0] is not None
-          else 0.0
-      )
-      st.write(f"• **{cat}**: ${tot_cat:,.0f}")
+      if c_bt2.form_submit_button("🗑️ Borrar Gasto"):
+        cursor.execute("DELETE FROM gastos_personales WHERE id=?", (sel_gp,))
+        conn.commit()
+        st.success("¡Eliminado con éxito!")
+        st.rerun()
+  else:
+    st.info("Sin registros de gastos.")
 
 elif menu == "Registrar Movimiento (Caja Negocio)":
   st.title("💰 Control de Caja: Negocio de Prendas")
@@ -278,7 +305,8 @@ elif menu == "Registrar Movimiento (Caja Negocio)":
           (tipo, categoria, monto, descripcion, fecha_actual),
       )
       conn.commit()
-      st.success("¡Movimiento guardado en caja!")
+      st.success("¡Movimiento guardado!")
+      st.rerun()
 
   st.markdown("---")
   st.subheader("📋 Historial de Caja")
@@ -288,11 +316,37 @@ elif menu == "Registrar Movimiento (Caja Negocio)":
   if not df_caja_hist.empty:
     st.dataframe(df_caja_hist, use_container_width=True)
 
+    st.markdown("### ⚙️ ADMINISTRAR REGISTRO")
+    ids_caja = df_caja_hist["id"].tolist()
+    sel_caja = st.selectbox("Seleccione ID de Caja a administrar:", ids_caja)
+    fila_caja = df_caja_hist[df_caja_hist["id"] == sel_caja].iloc[0]
+
+    with st.form("form_edit_caja"):
+      ec_desc = st.text_input("Detalles", value=fila_caja["descripcion"])
+      ec_monto = st.number_input(
+          "Monto ($)", value=float(fila_caja["monto"]), format="%.2f"
+      )
+      c_bc1, c_bc2 = st.columns(2)
+      if c_bc1.form_submit_button("🔄 Actualizar Movimiento"):
+        cursor.execute(
+            "UPDATE transacciones SET descripcion=?, monto=? WHERE id=?",
+            (ec_desc, ec_monto, sel_caja),
+        )
+        conn.commit()
+        st.success("¡Actualizado con éxito!")
+        st.rerun()
+      if c_bc2.form_submit_button("🗑️ Borrar Movimiento"):
+        cursor.execute("DELETE FROM transacciones WHERE id=?", (sel_caja,))
+        conn.commit()
+        st.success("¡Eliminado con éxito!")
+        st.rerun()
+  else:
+    st.info("Sin transacciones registradas.")
+
 elif menu == "PRECIOS Y CONTROL DE PEDIDOS":
   st.title("🏷️ PRECIOS Y CONTROL DE PEDIDOS")
   st.write(
-      "Gestiona tus artículos, calcula precios de venta y administra pedidos"
-      " con opción de modificación."
+      "Sistema integrado de cálculo de precios, inventario y flujo de pedidos."
   )
 
   with st.form("form_pedidos_precios", clear_on_submit=True):
@@ -327,7 +381,7 @@ elif menu == "PRECIOS Y CONTROL DE PEDIDOS":
 
     precio_venta_sugerido = costo + (costo * (margen_ganancia / 100))
     st.markdown(
-        f"<h3 style='color: #4CAF50;'>💵 PRECIO DE VENTA CALCULADO:"
+        f"<h3 style='color: {accent_color}; text-shadow: 0 0 10px rgba(0,255,204,0.3);'>💵 PRECIO DE VENTA CALCULADO:"
         f" ${precio_venta_sugerido:,.2f}</h3>",
         unsafe_allow_html=True,
     )
@@ -360,9 +414,7 @@ elif menu == "PRECIOS Y CONTROL DE PEDIDOS":
       st.rerun()
 
   st.markdown("---")
-  st.subheader(
-      "📋 Registro General de Pedidos y Precios (Modificar o Borrar)"
-  )
+  st.subheader("📋 Registro General de Pedidos y Precios")
 
   df_unificado = pd.read_sql_query(
       "SELECT * FROM pedidos_inventario ORDER BY id DESC", conn
@@ -371,25 +423,17 @@ elif menu == "PRECIOS Y CONTROL DE PEDIDOS":
   if not df_unificado.empty:
     st.dataframe(df_unificado, use_container_width=True)
 
-    st.markdown("### ⚙️ Administrar Registro (Editar o Eliminar)")
+    st.markdown("### ⚙️ ADMINISTRAR REGISTRO")
     ids_disponibles = df_unificado["id"].tolist()
     id_seleccionado = st.selectbox(
-        "Seleccione el ID del registro a modificar o borrar:", ids_disponibles
+        "Seleccione ID de Pedido/Prenda a administrar:", ids_disponibles
     )
-
-    # Buscar datos del registro seleccionado
     fila_sel = df_unificado[df_unificado["id"] == id_seleccionado].iloc[0]
 
     with st.form("form_editar_pedido"):
-      st.write(f"Editando Registro ID: **{id_seleccionado}**")
       e_cliente = st.text_input("Cliente", value=fila_sel["cliente"])
       e_modelo = st.text_input(
           "Modelo de Prenda", value=fila_sel["modelo_prenda"]
-      )
-      e_cat = st.text_input("Categoría", value=fila_sel["categoria"])
-      e_talle = st.text_input("Talle", value=fila_sel["talle"])
-      e_cant = st.number_input(
-          "Cantidad", min_value=1, value=int(fila_sel["cantidad"])
       )
       e_costo = st.number_input(
           "Costo Unitario ($)",
@@ -402,64 +446,42 @@ elif menu == "PRECIOS Y CONTROL DE PEDIDOS":
           min_value=0.0,
           value=float(fila_sel["margen_ganancia"]),
       )
-      e_stock = st.number_input(
-          "Stock Inicial", min_value=0, value=int(fila_sel["stock_inicial"])
-      )
-      e_canal = st.text_input("Canal", value=fila_sel["canal"])
       e_estado = st.selectbox(
           "Estado del Pedido",
           ["Pendiente", "Confirmado", "Entregado", "Cancelado"],
-          index=(
-              ["Pendiente", "Confirmado", "Entregado", "Cancelado"].index(
-                  fila_sel["estado"]
-              )
-              if fila_sel["estado"]
-              in ["Pendiente", "Confirmado", "Entregado", "Cancelado"]
-              else 0
-          ),
       )
 
       nuevo_precio_calc = e_costo + (e_costo * (e_margen / 100))
       st.info(f"💡 Nuevo Precio Calculado: ${nuevo_precio_calc:,.2f}")
 
       col_b1, col_b2 = st.columns(2)
-      btn_actualizar = col_b1.form_submit_button(
-          "🔄 Actualizar Registro Seleccionado"
-      )
-      btn_borrar = col_b2.form_submit_button("🗑️ Borrar Este Registro")
-
-      if btn_actualizar:
+      if col_b1.form_submit_button("🔄 Actualizar Registro"):
         cursor.execute(
             """
                 UPDATE pedidos_inventario 
-                SET cliente=?, modelo_prenda=?, categoria=?, talle=?, cantidad=?, costo=?, margen_ganancia=?, precio_venta=?, stock_inicial=?, canal=?, estado=?
+                SET cliente=?, modelo_prenda=?, costo=?, margen_ganancia=?, precio_venta=?, estado=?
                 WHERE id=?
             """,
             (
                 e_cliente,
                 e_modelo,
-                e_cat,
-                e_talle,
-                e_cant,
                 e_costo,
                 e_margen,
                 nuevo_precio_calc,
-                e_stock,
-                e_canal,
                 e_estado,
                 id_seleccionado,
             ),
         )
         conn.commit()
-        st.success("¡Registro actualizado correctamente!")
+        st.success("¡Registro actualizado!")
         st.rerun()
 
-      if btn_borrar:
+      if col_b2.form_submit_button("🗑️ Borrar Registro"):
         cursor.execute(
             "DELETE FROM pedidos_inventario WHERE id=?", (id_seleccionado,)
         )
         conn.commit()
-        st.success("¡Registro eliminado correctamente!")
+        st.success("¡Registro eliminado!")
         st.rerun()
   else:
     st.info("Aún no hay registros en este módulo.")
@@ -491,12 +513,43 @@ elif menu == "Gestión de Deudas (Fiados)":
       )
       conn.commit()
       st.success("¡Deuda registrada!")
+      st.rerun()
+
   df_deudas = pd.read_sql_query("SELECT * FROM deudas ORDER BY id DESC", conn)
   if not df_deudas.empty:
     st.dataframe(df_deudas, use_container_width=True)
 
+    st.markdown("### ⚙️ ADMINISTRAR REGISTRO")
+    ids_deuda = df_deudas["id"].tolist()
+    sel_deuda = st.selectbox("Seleccione ID de Deuda a administrar:", ids_deuda)
+    fila_deuda = df_deudas[df_deudas["id"] == sel_deuda].iloc[0]
+
+    with st.form("form_edit_deuda"):
+      ed_monto = st.number_input(
+          "Monto ($)", value=float(fila_deuda["monto_deuda"]), format="%.2f"
+      )
+      ed_estado = st.selectbox(
+          "Estado", ["Pendiente de Pago", "Pagado Total"]
+      )
+      c_bd1, c_bd2 = st.columns(2)
+      if c_bd1.form_submit_button("🔄 Actualizar Deuda"):
+        cursor.execute(
+            "UPDATE deudas SET monto_deuda=?, estado=? WHERE id=?",
+            (ed_monto, ed_estado, sel_deuda),
+        )
+        conn.commit()
+        st.success("¡Actualizado con éxito!")
+        st.rerun()
+      if c_bd2.form_submit_button("🗑️ Borrar Deuda"):
+        cursor.execute("DELETE FROM deudas WHERE id=?", (sel_deuda,))
+        conn.commit()
+        st.success("¡Eliminado con éxito!")
+        st.rerun()
+  else:
+    st.info("Sin deudas registradas.")
+
 elif menu == "Gráficos y Finanzas":
-  st.title("📊 Análisis Financiero Global del Negocio")
+  st.title("📊 Análisis Financiero Global")
   df_trans = pd.read_sql_query(
       "SELECT * FROM transacciones ORDER BY id DESC", conn
   )
@@ -531,14 +584,13 @@ elif menu == "Gráficos y Finanzas":
 
     st.markdown("---")
     if not df_trans.empty:
-      st.subheader("Gráfico de Movimientos de Caja")
+      st.subheader("Gráfico de Movimientos")
       st.bar_chart(df_trans.groupby("tipo")["monto"].sum())
   else:
     st.info("Sin datos financieros suficientes para graficar.")
 
 elif menu == "Exportar Reportes (PDF / Excel)":
   st.title("📄 Exportar Reportes (PDF y Excel)")
-
   tab_pdf, tab_excel = st.tabs(["📄 Reporte PDF", "📊 Exportar a Excel"])
 
   with tab_pdf:
@@ -574,10 +626,7 @@ elif menu == "Exportar Reportes (PDF / Excel)":
       st.warning("No hay transacciones registradas para exportar a PDF.")
 
   with tab_excel:
-    st.write(
-        "Descarga tus bases de datos completas en formato Excel (.xlsx) con"
-        " un solo clic."
-    )
+    st.write("Descarga tus bases de datos completas en Excel (.xlsx).")
     if st.button("📥 Generar Archivo Excel"):
       output = io.BytesIO()
       with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -594,7 +643,6 @@ elif menu == "Exportar Reportes (PDF / Excel)":
             writer, index=False, sheet_name="Deudas y Fiados"
         )
       output.seek(0)
-
       st.download_button(
           label="⬇️ Descargar Excel Completo (PROYECTO X)",
           data=output,
