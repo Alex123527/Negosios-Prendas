@@ -1,3 +1,4 @@
+
 from datetime import datetime
 import io
 import openpyxl
@@ -12,7 +13,7 @@ st.set_page_config(page_title="Gráficos y Finanzas", page_icon="🌿", layout="
 conn = sqlite3.connect("negocio_prendas.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Asegurar que todas las tablas existan para evitar errores al abrir este módulo
+# Asegurar tablas
 cursor.execute(
     """
     CREATE TABLE IF NOT EXISTS transacciones (
@@ -117,7 +118,7 @@ with tab_pdf:
     p.save()
     buffer.seek(0)
     st.download_button(
-        ⬇️ Descargar Reporte PDF,
+        "⬇️ Descargar Reporte PDF",
         data=buffer,
         file_name="reporte_financiero.pdf",
         mime="application/pdf",
