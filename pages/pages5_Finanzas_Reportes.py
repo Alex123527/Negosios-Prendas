@@ -12,6 +12,43 @@ st.set_page_config(page_title="Gráficos y Finanzas", page_icon="🌿", layout="
 conn = sqlite3.connect("negocio_prendas.db", check_same_thread=False)
 cursor = conn.cursor()
 
+# Asegurar que todas las tablas existan para evitar errores al abrir este módulo
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS transacciones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tipo TEXT, categoria TEXT, monto REAL, descripcion TEXT, fecha TEXT
+    )
+"""
+)
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS pedidos_inventario (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente TEXT, modelo_prenda TEXT, categoria TEXT, talle TEXT, 
+        cantidad INTEGER, costo REAL, margen_ganancia REAL, precio_venta REAL, 
+        stock_inicial INTEGER, canal TEXT, estado TEXT, fecha TEXT
+    )
+"""
+)
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS gastos_personales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT, descripcion TEXT, categoria TEXT, metodo_pago TEXT, monto REAL, comprobante_nombre TEXT
+    )
+"""
+)
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS deudas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente TEXT, concepto TEXT, monto_deuda REAL, estado TEXT, fecha TEXT
+    )
+"""
+)
+conn.commit()
+
 st.title("📊 Análisis Financiero Global")
 st.write(
     "Resumen general de entradas, salidas, balance y exportación de reportes."
@@ -80,7 +117,7 @@ with tab_pdf:
     p.save()
     buffer.seek(0)
     st.download_button(
-        "⬇️ Descargar Reporte PDF",
+        ⬇️ Descargar Reporte PDF,
         data=buffer,
         file_name="reporte_financiero.pdf",
         mime="application/pdf",
