@@ -7,6 +7,15 @@ st.set_page_config(
     page_title="Precios y Control de Pedidos", page_icon="🌿", layout="wide"
 )
 
+# --- ESCUDO DE SEGURIDAD ---
+if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
+  st.warning(
+      "⚠️ Acceso denegado. Por favor, inicia sesión en la página principal"
+      " (app.py)."
+  )
+  st.stop()
+# ---------------------------
+
 conn = sqlite3.connect("negocio_prendas.db", check_same_thread=False)
 cursor = conn.cursor()
 

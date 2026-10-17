@@ -7,6 +7,15 @@ st.set_page_config(
     page_title="Control de Gastos Personales", page_icon="🌿", layout="wide"
 )
 
+# --- ESCUDO DE SEGURIDAD ---
+if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
+  st.warning(
+      "⚠️ Acceso denegado. Por favor, inicia sesión en la página principal"
+      " (app.py)."
+  )
+  st.stop()
+# ---------------------------
+
 conn = sqlite3.connect("negocio_prendas.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -31,7 +40,6 @@ conn.commit()
 st.title("🌿 CONTROL DE GASTOS PERSONALES")
 st.write("ORGANIZÁ • CONTROLÁ • AHORRÁ")
 
-# Cálculos financieros rápidos
 df_gastos_calc = pd.read_sql_query(
     "SELECT SUM(monto) as total FROM gastos_personales", conn
 )
@@ -54,7 +62,6 @@ total_ingresos_p = (
 )
 ahorro_p = max(0.0, total_ingresos_p - total_gastos_p)
 
-# Tarjetas Métricas Superiores estilo Planner
 m1, m2, m3 = st.columns(3)
 m1.metric("💰 INGRESOS TOTALES", f"${total_ingresos_p:,.0f}")
 m2.metric("🛒 GASTOS TOTALES", f"${total_gastos_p:,.0f}")
@@ -62,7 +69,6 @@ m3.metric("🐖 AHORRO", f"${ahorro_p:,.0f}")
 
 st.markdown("---")
 
-# Distribución en dos columnas principales (Formulario + Categorías/Notas estilo Planner)
 col_izq, col_der = st.columns([2, 1])
 
 with col_izq:
@@ -152,7 +158,6 @@ with col_der:
 
 st.markdown("---")
 
-# Sección de Metas de Ahorro y Notas del Mes estilo Agenda
 col_meta1, col_meta2 = st.columns(2)
 
 with col_meta1:

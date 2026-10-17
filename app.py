@@ -50,9 +50,13 @@ if not st.session_state["autenticado"]:
     password_ingresada = st.text_input("Contraseña", type="password")
 
     if st.button("Iniciar Sesión", use_container_width=True):
+      # Leer credenciales seguras desde los secrets de Streamlit
+      correo_valido = st.secrets["auth"]["correo"]
+      password_valida = st.secrets["auth"]["password"]
+
       if (
-          correo_ingresado.strip().lower() == "ozunaramon22@gmail.com"
-          and password_ingresada == "123456"
+          correo_ingresado.strip().lower() == correo_valido.lower()
+          and password_ingresada == password_valida
       ):
         st.session_state["autenticado"] = True
         st.rerun()
