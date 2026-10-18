@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
+from supabase import create_client, Client
 
 st.set_page_config(page_title="Gastos Personales | PROYECTO X", page_icon="⚡", layout="wide")
 
@@ -47,19 +47,14 @@ if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
     st.warning("⚠️ Acceso restringido. Por favor autentíquese en app.py.")
     st.stop()
 
-# Conexión directa a Google Sheets
-conn_gs = st.connection("gsheets", type=GSheetsConnection)
+# Conexión a Supabase
+@st.cache_resource
+def init_supabase() -> Client:
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
+    return create_client(url, key)
 
-def cargar_gastos():
-    try:
-        df = conn_gs.read(worksheet="gastos_personales", ttl=5)
-        if df is None or df.empty:
-            return pd.DataFrame(columns=["FECHA", "DESCRIPCION", "CATEGORIA", "METODO-PAGO", "MONTO", "COMPROBANTE", "NOMBRE"])
-        return df.dropna(how="all")
-    except Exception:
-        return pd.DataFrame(columns=["FECHA", "DESCRIPCION", "CATEGORIA", "METODO-PAGO", "MONTO", "COMPROBANTE", "NOMBRE"])
-
-df_gp = cargar_gastos()
+supabase = init_supabase()
 
 # Función para formatear Guaraníes (sin decimales, separador de miles con punto)
 def formato_gs(valor):
@@ -69,13 +64,26 @@ def formato_gs(valor):
     except Exception:
         return "Gs. 0"
 
-st.title("⚡ CONTROL DE GASTOS PERSONALES")
-st.caption("CLOUD SYNC & WEALTH BUILDING")
+# Cargar gastos desde Supabase
+def cargar_gastos():
+    try:
+        res = supabase.table("gastos_personales").select("*").order("id", desc=True).execute()
+        if res.data:
+            return pd.DataFrame(res.data)
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error al conectar con Supabase: {e}")
+        return pd.DataFrame()
 
-# Cálculos de totales
-if not df_gp.empty and "MONTO" in df_gp.columns:
-    df_gp["MONTO_NUM"] = pd.to_numeric(df_gp["MONTO"], errors="coerce").fillna(0)
-    total_gastos_p = df_gp["MONTO_NUM"].sum()
+df_gp = cargar_gastos()
+
+st.title("⚡ CONTROL DE GASTOS PERSONALES")
+st.caption("CLOUD PERSISTENCE & WEALTH BUILDING")
+
+# Cálculos
+if not df_gp.empty and "monto" in df_gp.columns:
+    df_gp["monto_num"] = pd.to_numeric(df_gp["monto"], errors="coerce").fillna(0)
+    total_gastos_p = float(df_gp["monto_num"].sum())
 else:
     total_gastos_p = 0.0
 
@@ -112,27 +120,20 @@ with col_izq:
         if submit_gasto:
             if monto_gasto > 0 and descripcion_gasto.strip():
                 nombre_archivo = archivo_comprobante.name if archivo_comprobante else "Sin archivo"
-                nueva_fila = pd.DataFrame([{
-                    "FECHA": str(fecha_gasto),
-                    "DESCRIPCION": descripcion_gasto,
-                    "CATEGORIA": categoria_gasto,
-                    "METODO-PAGO": metodo_pago,
-                    "MONTO": int(monto_gasto),
-                    "COMPROBANTE": nombre_archivo,
-                    "NOMBRE": "Alexis"
-                }])
-                
-                df_actualizado = pd.concat([df_gp, nueva_fila], ignore_index=True)
-                # Mantener solo las columnas originales de la hoja
-                cols_guardar = ["FECHA", "DESCRIPCION", "CATEGORIA", "METODO-PAGO", "MONTO", "COMPROBANTE", "NOMBRE"]
-                df_guardar = df_actualizado[[c for c in cols_guardar if c in df_actualizado.columns]]
-                
+                nuevo_registro = {
+                    "fecha": str(fecha_gasto),
+                    "descripcion": descripcion_gasto,
+                    "categoria": categoria_gasto,
+                    "metodo_pago": metodo_pago,
+                    "monto": int(monto_gasto),
+                    "comprobante_nombre": nombre_archivo
+                }
                 try:
-                    conn_gs.update(worksheet="gastos_personales", data=df_guardar)
-                    st.success("Operación guardada en la nube (Google Sheets).")
+                    supabase.table("gastos_personales").insert(nuevo_registro).execute()
+                    st.success("Operación guardada en Supabase.")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error al sincronizar con Google Sheets: {e}")
+                    st.error(f"Error al guardar: {e}")
             else:
                 st.warning("Ingresa una descripción válida y un monto mayor a 0.")
 
@@ -140,8 +141,8 @@ with col_der:
     st.subheader("📊 Distribución por Categoría")
     categorias_lista = ["Vivienda", "Comida", "Transporte", "Servicios", "Ocio", "Salud", "Estudios", "Otros"]
     for cat in categorias_lista:
-        if not df_gp.empty and "CATEGORIA" in df_gp.columns and "MONTO_NUM" in df_gp.columns:
-            sub_monto = df_gp[df_gp["CATEGORIA"] == cat]["MONTO_NUM"].sum()
+        if not df_gp.empty and "categoria" in df_gp.columns and "monto_num" in df_gp.columns:
+            sub_monto = df_gp[df_gp["categoria"] == cat]["monto_num"].sum()
         else:
             sub_monto = 0.0
         st.write(f"• **{cat}**: `{formato_gs(sub_monto)}`")
@@ -164,10 +165,33 @@ with col_meta2:
         st.success("Nota preservada.")
 
 st.markdown("---")
-st.subheader("📋 Registro Maestro de Gastos (Google Sheets)")
+st.subheader("📋 Registro Maestro de Gastos (Supabase)")
 
 if not df_gp.empty:
-    cols_mostrar = [c for c in ["FECHA", "DESCRIPCION", "CATEGORIA", "METODO-PAGO", "MONTO", "COMPROBANTE"] if c in df_gp.columns]
+    cols_mostrar = [c for c in ["id", "fecha", "descripcion", "categoria", "metodo_pago", "monto", "comprobante_nombre"] if c in df_gp.columns]
     st.dataframe(df_gp[cols_mostrar], use_container_width=True)
+
+    st.markdown("### ⚙️ ADMINISTRACIÓN DE REGISTROS")
+    sel_id = st.selectbox("ID de Transacción a Modificar / Eliminar:", df_gp['id'].tolist())
+    fila_sel = df_gp[df_gp['id'] == sel_id].iloc[0]
+
+    with st.form("form_edit_supabase"):
+        eg_desc = st.text_input("Descripción", value=str(fila_sel['descripcion']))
+        eg_monto = st.number_input("Monto (Gs.)", value=int(fila_sel['monto']), format="%d", step=1000)
+        c_bt1, c_bt2 = st.columns(2)
+        if c_bt1.form_submit_button("🔄 ACTUALIZAR (ENTER)"):
+            try:
+                supabase.table("gastos_personales").update({"descripcion": eg_desc, "monto": int(eg_monto)}).eq("id", sel_id).execute()
+                st.success("Registro modificado en la nube.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al actualizar: {e}")
+        if c_bt2.form_submit_button("🗑️ PURGAR REGISTRO"):
+            try:
+                supabase.table("gastos_personales").delete().eq("id", sel_id).execute()
+                st.success("Registro eliminado de la nube.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al eliminar: {e}")
 else:
     st.info("Sin operaciones registradas todavía en la nube.")
