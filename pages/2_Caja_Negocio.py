@@ -3,12 +3,12 @@ import pandas as pd
 from datetime import datetime
 from supabase import create_client, Client
 
-st.set_page_config(page_title="Caja Negocio | PROYECTO X", page_icon="💼", layout="wide")
+st.set_page_config(page_title="Caja de Negocio | PROYECTO X", page_icon="💼", layout="wide")
 
-# CSS Estilo Futurista
+# CSS Estilo Futurista Premium
 st.markdown("""
     <style>
-    @import url('[https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap)');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     .stApp { background-color: #071426; color: #E6EDF5; }
     section[data-testid="stSidebar"] { background-color: #0b1a2f !important; }
@@ -63,7 +63,8 @@ def cargar_transacciones():
 
 df_tx = cargar_transacciones()
 
-st.title("💼 FLUJO DE CAJA NEGOCIO")
+# Título principal limpio
+st.title("💼 CAJA DE NEGOCIO")
 st.caption("GESTIÓN OPERATIVA Y RENTABILIDAD EN LA NUBE")
 
 # Cálculos de Totales
@@ -88,8 +89,8 @@ st.markdown("---")
 col_form, col_resumen = st.columns([2, 1])
 
 with col_form:
-    st.subheader("➕ Nueva Operación de Caja")
-    st.caption("💡 *Tip: Puedes presionar **Enter** al finalizar para asentar inmediatamente.*")
+    # Cambio: Solo dice "OPERACION DE CAJA" y se quitó la línea del tip
+    st.subheader("➕ OPERACION DE CAJA")
     
     with st.form("form_caja", clear_on_submit=True):
         c1, c2 = st.columns(2)
@@ -100,20 +101,38 @@ with col_form:
                 "Venta de Prenda", "Cobro de Deuda", "Inversión Mercadería", 
                 "Packaging / Envíos", "Publicidad", "Alquiler / Servicios", "Otros Gastos"
             ])
+            # Cuadro independiente: Cliente
+            cliente_op = st.text_input("Cliente", placeholder="Ej: María González / Consumidor Final")
         with c2:
             monto_op = st.number_input("Monto (Gs.)", min_value=0, value=0, step=5000, format="%d")
-            desc_op = st.text_input("Concepto / Cliente / Detalle")
+            # Cuadros independientes: Concepto y Detalle
+            concepto_op = st.text_input("Concepto", placeholder="Ej: Venta de Leggins básicas")
+            detalle_op = st.text_input("Detalle", placeholder="Ej: Pago en efectivo / Entrega delivery")
         
-        btn_guardar = st.form_submit_button("💾 ASENTAR OPERACIÓN (ENTER)")
+        # Muestra en tiempo real del monto formateado con puntos
+        st.caption(f"Monto ingresado: **{formato_gs(monto_op)}**")
+        
+        btn_guardar = st.form_submit_button("💾 ASENTAR OPERACIÓN")
         
         if btn_guardar:
-            if monto_op > 0 and desc_op.strip():
+            # Unimos los campos en el texto descriptivo para mantener compatibilidad total con la base de datos
+            partes_desc = []
+            if cliente_op.strip():
+                partes_desc.append(f"Cliente: {cliente_op.strip()}")
+            if concepto_op.strip():
+                partes_desc.append(f"Concepto: {concepto_op.strip()}")
+            if detalle_op.strip():
+                partes_desc.append(f"Detalle: {detalle_op.strip()}")
+            
+            descripcion_completa = " | ".join(partes_desc)
+
+            if monto_op > 0 and descripcion_completa.strip():
                 nueva_tx = {
                     "fecha": str(fecha_op),
                     "tipo": tipo_op,
                     "categoria": categoria_op,
                     "monto": int(monto_op),
-                    "descripcion": desc_op
+                    "descripcion": descripcion_completa
                 }
                 try:
                     supabase.table("transacciones").insert(nueva_tx).execute()
@@ -122,33 +141,46 @@ with col_form:
                 except Exception as e:
                     st.error(f"Error al registrar: {e}")
             else:
-                st.warning("Ingresa una descripción válida y un monto mayor a 0.")
+                st.warning("Completa los datos de la operación e ingresa un monto mayor a 0.")
 
 with col_resumen:
-    st.subheader("📊 Movimientos por Tipo")
+    # Cambio: En mayúsculas completas
+    st.subheader("📊 MOVIMIENTO POR TIPO")
     st.write(f"• **Ingresos totales:** `{formato_gs(ingresos_total)}`")
     st.write(f"• **Egresos totales:** `{formato_gs(egresos_total)}`")
     margen = (saldo_neto / ingresos_total * 100) if ingresos_total > 0 else 0
     st.write(f"• **Margen operativo:** `{margen:.1f}%`")
 
 st.markdown("---")
-st.subheader("📋 Libro Diario de Caja")
+# Cambio: En mayúsculas completas
+st.subheader("📋 LIBRO DIARIO DE CAJA")
 
 if not df_tx.empty:
-    columnas_mostrar = [c for c in ["id", "fecha", "tipo", "categoria", "monto", "descripcion"] if c in df_tx.columns]
-    st.dataframe(df_tx[columnas_mostrar], use_container_width=True)
+    cols_mostrar = [c for c in ["id", "fecha", "tipo", "categoria", "monto", "descripcion"] if c in df_tx.columns]
+    
+    # Formateo visual del monto con puntos separadores
+    df_visual = df_tx[cols_mostrar].copy()
+    if "monto" in df_visual.columns:
+        df_visual["monto"] = df_visual["monto"].apply(formato_gs)
+        
+    st.dataframe(df_visual, use_container_width=True)
 
     st.markdown("### ⚙️ Modificar o Eliminar Transacción")
     tx_id_sel = st.selectbox("Seleccione ID de operación:", df_tx["id"].tolist())
     fila_tx = df_tx[df_tx["id"] == tx_id_sel].iloc[0]
 
     with st.form("form_edit_caja"):
-        ed_desc = st.text_input("Detalle", value=str(fila_tx["descripcion"]))
+        ed_desc = st.text_input("Detalle / Descripción completa", value=str(fila_tx["descripcion"]))
         ed_monto = st.number_input("Monto (Gs.)", value=int(fila_tx["monto"]), format="%d", step=5000)
+        st.caption(f"Monto a actualizar: **{formato_gs(ed_monto)}**")
+        
         c_ed1, c_ed2 = st.columns(2)
-        if c_ed1.form_submit_button("🔄 ACTUALIZAR (ENTER)"):
+        if c_ed1.form_submit_button("🔄 ACTUALIZAR"):
             try:
-                supabase.table("transacciones").update({"descripcion": ed_desc, "monto": int(ed_monto)}).eq("id", tx_id_sel).execute()
+                supabase.table("transacciones").update({
+                    "descripcion": ed_desc, 
+                    "monto": int(ed_monto)
+                }).eq("id", tx_id_sel).execute()
                 st.success("Operación actualizada en Supabase.")
                 st.rerun()
             except Exception as e:
