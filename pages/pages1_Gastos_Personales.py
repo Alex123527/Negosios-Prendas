@@ -1,7 +1,7 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
 from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="Gastos Personales | PROYECTO X", page_icon="⚡", layout="wide")
 
@@ -47,38 +47,39 @@ if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
     st.warning("⚠️ Acceso restringido. Por favor autentíquese en app.py.")
     st.stop()
 
-# Conexión Base de Datos
-conn = sqlite3.connect("negocio_prendas.db", check_same_thread=False)
-cursor = conn.cursor()
+# Conexión directa a Google Sheets
+conn_gs = st.connection("gsheets", type=GSheetsConnection)
 
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS gastos_personales (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        fecha TEXT, descripcion TEXT, categoria TEXT, metodo_pago TEXT, monto REAL, comprobante_nombre TEXT
-    )
-""")
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS notas_planner (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        mes TEXT, notas TEXT, meta_ahorro REAL, objetivo_monto REAL
-    )
-""")
-conn.commit()
+def cargar_gastos():
+    try:
+        df = conn_gs.read(worksheet="gastos_personales", ttl=5)
+        if df is None or df.empty:
+            return pd.DataFrame(columns=["FECHA", "DESCRIPCION", "CATEGORIA", "METODO-PAGO", "MONTO", "COMPROBANTE", "NOMBRE"])
+        return df.dropna(how="all")
+    except Exception:
+        return pd.DataFrame(columns=["FECHA", "DESCRIPCION", "CATEGORIA", "METODO-PAGO", "MONTO", "COMPROBANTE", "NOMBRE"])
 
-# Función para formatear moneda en Guaraníes con separador de miles por puntos
+df_gp = cargar_gastos()
+
+# Función para formatear Guaraníes (sin decimales, separador de miles con punto)
 def formato_gs(valor):
-    val_int = int(round(valor or 0))
-    return f"Gs. {val_int:,}".replace(",", ".")
+    try:
+        val_int = int(round(float(valor or 0)))
+        return f"Gs. {val_int:,}".replace(",", ".")
+    except Exception:
+        return "Gs. 0"
 
 st.title("⚡ CONTROL DE GASTOS PERSONALES")
-st.caption("FINANCIAL TRACKING & WEALTH BUILDING")
+st.caption("CLOUD SYNC & WEALTH BUILDING")
 
-# Cálculos
-df_gastos_calc = pd.read_sql_query("SELECT SUM(monto) as total FROM gastos_personales", conn)
-total_gastos_p = df_gastos_calc['total'].iloc[0] if not df_gastos_calc.empty and df_gastos_calc['total'].iloc[0] is not None else 0.0
+# Cálculos de totales
+if not df_gp.empty and "MONTO" in df_gp.columns:
+    df_gp["MONTO_NUM"] = pd.to_numeric(df_gp["MONTO"], errors="coerce").fillna(0)
+    total_gastos_p = df_gp["MONTO_NUM"].sum()
+else:
+    total_gastos_p = 0.0
 
-df_caja_ing = pd.read_sql_query("SELECT SUM(monto) as total FROM transacciones WHERE tipo='Entrada (Venta/Cobro)'", conn)
-total_ingresos_p = df_caja_ing['total'].iloc[0] if not df_caja_ing.empty and df_caja_ing['total'].iloc[0] is not None else 2500000.0
+total_ingresos_p = 2500000.0
 ahorro_p = max(0.0, total_ingresos_p - total_gastos_p)
 
 # Métricas Principales en Gs.
@@ -106,19 +107,32 @@ with col_izq:
             monto_gasto = st.number_input("Monto (Gs.)", min_value=0, value=0, step=5000, format="%d")
             archivo_comprobante = st.file_uploader("Documento de Respaldo", type=["png", "jpg", "jpeg", "pdf"])
         
-        # Al presionar Enter dentro de cualquier input del formulario, se activa este botón
-        submit_gasto = st.form_submit_button("💾 ASENTAR GASTO (O PRESIONA ENTER)")
+        submit_gasto = st.form_submit_button("💾 ASENTAR GASTO (ENTER)")
         
         if submit_gasto:
             if monto_gasto > 0 and descripcion_gasto.strip():
                 nombre_archivo = archivo_comprobante.name if archivo_comprobante else "Sin archivo"
-                cursor.execute("""
-                    INSERT INTO gastos_personales (fecha, descripcion, categoria, metodo_pago, monto, comprobante_nombre)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (str(fecha_gasto), descripcion_gasto, categoria_gasto, metodo_pago, float(monto_gasto), nombre_archivo))
-                conn.commit()
-                st.success("Operación registrada en base de datos.")
-                st.rerun()
+                nueva_fila = pd.DataFrame([{
+                    "FECHA": str(fecha_gasto),
+                    "DESCRIPCION": descripcion_gasto,
+                    "CATEGORIA": categoria_gasto,
+                    "METODO-PAGO": metodo_pago,
+                    "MONTO": int(monto_gasto),
+                    "COMPROBANTE": nombre_archivo,
+                    "NOMBRE": "Alexis"
+                }])
+                
+                df_actualizado = pd.concat([df_gp, nueva_fila], ignore_index=True)
+                # Mantener solo las columnas originales de la hoja
+                cols_guardar = ["FECHA", "DESCRIPCION", "CATEGORIA", "METODO-PAGO", "MONTO", "COMPROBANTE", "NOMBRE"]
+                df_guardar = df_actualizado[[c for c in cols_guardar if c in df_actualizado.columns]]
+                
+                try:
+                    conn_gs.update(worksheet="gastos_personales", data=df_guardar)
+                    st.success("Operación guardada en la nube (Google Sheets).")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al sincronizar con Google Sheets: {e}")
             else:
                 st.warning("Ingresa una descripción válida y un monto mayor a 0.")
 
@@ -126,9 +140,11 @@ with col_der:
     st.subheader("📊 Distribución por Categoría")
     categorias_lista = ["Vivienda", "Comida", "Transporte", "Servicios", "Ocio", "Salud", "Estudios", "Otros"]
     for cat in categorias_lista:
-        df_cat = pd.read_sql_query("SELECT SUM(monto) as total FROM gastos_personales WHERE categoria = ?", conn, params=(cat,))
-        tot_cat = df_cat['total'].iloc[0] if not df_cat.empty and df_cat['total'].iloc[0] is not None else 0.0
-        st.write(f"• **{cat}**: `{formato_gs(tot_cat)}`")
+        if not df_gp.empty and "CATEGORIA" in df_gp.columns and "MONTO_NUM" in df_gp.columns:
+            sub_monto = df_gp[df_gp["CATEGORIA"] == cat]["MONTO_NUM"].sum()
+        else:
+            sub_monto = 0.0
+        st.write(f"• **{cat}**: `{formato_gs(sub_monto)}`")
 
 st.markdown("---")
 
@@ -145,31 +161,13 @@ with col_meta2:
     st.subheader("📌 Anotaciones Financieras")
     st.text_area("Notas estratégicas:", placeholder="Estrategia de reducción de costes, compras planificadas...")
     if st.button("Guardar Nota"):
-        st.success("Nota preservada localmente.")
+        st.success("Nota preservada.")
 
 st.markdown("---")
-st.subheader("📋 Registro Maestro de Gastos")
-df_gp = pd.read_sql_query("SELECT * FROM gastos_personales ORDER BY id DESC", conn)
+st.subheader("📋 Registro Maestro de Gastos (Google Sheets)")
 
 if not df_gp.empty:
-    st.dataframe(df_gp, use_container_width=True)
-    st.markdown("### ⚙️ ADMINISTRACIÓN DE REGISTROS")
-    sel_gp = st.selectbox("ID de Transacción a Modificar:", df_gp['id'].tolist())
-    fila_gp = df_gp[df_gp['id'] == sel_gp].iloc[0]
-
-    with st.form("form_edit_gp"):
-        eg_desc = st.text_input("Descripción", value=fila_gp['descripcion'])
-        eg_monto = st.number_input("Monto (Gs.)", value=int(fila_gp['monto']), format="%d", step=1000)
-        c_bt1, c_bt2 = st.columns(2)
-        if c_bt1.form_submit_button("🔄 ACTUALIZAR (ENTER)"):
-            cursor.execute("UPDATE gastos_personales SET descripcion=?, monto=? WHERE id=?", (eg_desc, float(eg_monto), sel_gp))
-            conn.commit()
-            st.success("Registro modificado.")
-            st.rerun()
-        if c_bt2.form_submit_button("🗑️ PURGAR REGISTRO"):
-            cursor.execute("DELETE FROM gastos_personales WHERE id=?", (sel_gp,))
-            conn.commit()
-            st.success("Registro eliminado.")
-            st.rerun()
+    cols_mostrar = [c for c in ["FECHA", "DESCRIPCION", "CATEGORIA", "METODO-PAGO", "MONTO", "COMPROBANTE"] if c in df_gp.columns]
+    st.dataframe(df_gp[cols_mostrar], use_container_width=True)
 else:
-    st.info("Sin operaciones registradas.")
+    st.info("Sin operaciones registradas todavía en la nube.")
