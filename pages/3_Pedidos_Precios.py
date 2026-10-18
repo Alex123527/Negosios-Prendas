@@ -64,7 +64,7 @@ def cargar_pedidos():
 df_pedidos = cargar_pedidos()
 
 st.title("🏷️ PEDIDOS Y PRECIOS")
-st.caption("CONTROL DE CATÁLOGO Y CATAPULTA DE MÁRGENES EN LA NUBE")
+st.caption("CONTROL DE CATÁLOGO, LOGÍSTICA Y CATAPULTA DE MÁRGENES")
 
 # Métricas Superiores
 total_articulos = 0
@@ -98,45 +98,49 @@ with col_form:
     c1, c2 = st.columns(2)
     with c1:
         fecha_ped = st.date_input("Fecha de Registro", value=datetime.now())
-        cliente_ped = st.text_input("Cliente / Destino", placeholder="Ej: Venta Local, María González...")
-        modelo_ped = st.text_input("Modelo de Prenda / Descripción", placeholder="Ej: Championes Urbanos, Calza Lycra...")
+        cliente_ped = st.text_input("Cliente / Destino", placeholder="Ej: María González / Consumidor Final")
+        modelo_ped = st.text_input("Modelo de Prenda / Calzado", placeholder="Ej: Championes Urbanos, Calza Lycra...")
         
-        # Categorías incluyendo Calzados
         categorias_lista = ["Calzados", "Remeras", "Pantalones / Jeans", "Calzas / Leggins", "Buzos / Hoodies", "Camperas", "Shorts", "Accesorios", "Otros"]
         cat_ped = st.selectbox("Categoría", categorias_lista)
         
-        # Talles dinámicos según categoría
         if cat_ped == "Calzados":
             talles_disponibles = [str(i) for i in range(1, 51)]
-            talle_ped = st.selectbox("Calce / Talle", talles_disponibles, index=39)  # Calce 40 por defecto
+            talle_ped = st.selectbox("Calce / Talle", talles_disponibles, index=39)
         else:
             talles_disponibles = ["XS", "S", "M", "L", "XL", "XXL", "Único", "Surtido"]
             talle_ped = st.selectbox("Talle", talles_disponibles, index=2)
             
-        # Tipo de pago
         tipo_pago_ped = st.selectbox("Tipo de Pago", ["Efectivo", "Transferencia Bancaria", "Billetera Zimple / Giros", "Tarjeta de Débito/Crédito", "A Crédito / Pendiente", "Otro"])
 
     with c2:
         cant_ped = st.number_input("Cantidad de Unidades", min_value=1, value=1, step=1)
-        costo_unit = st.number_input("Costo Unitario (Gs.)", min_value=0, value=35000, step=5000, format="%d")
-        st.caption(f"Costo unitario: **{formato_gs(costo_unit)}**")
+        costo_unit = st.number_input("Costo Unitario Prenda (Gs.)", min_value=0, value=35000, step=5000, format="%d")
+        st.caption(f"Costo unitario prenda: **{formato_gs(costo_unit)}**")
         
-        margen_pct = st.slider("Margen de Ganancia Deseado (%)", min_value=5, max_value=250, value=60, step=5)
+        margen_pct = st.slider("Margen Deseado (%)", min_value=5, max_value=250, value=60, step=5)
         
-        # Cálculo interactivo automático
         precio_sugerido_calculado = int(round(costo_unit * (1 + margen_pct / 100)))
-        precio_final = st.number_input("Precio de Venta Final (Gs.)", min_value=0, value=precio_sugerido_calculado, step=5000, format="%d")
-        st.caption(f"Precio unitario de venta: **{formato_gs(precio_final)}**")
+        precio_final = st.number_input("Precio de Venta Unitario (Gs.)", min_value=0, value=precio_sugerido_calculado, step=5000, format="%d")
+        st.caption(f"Precio venta unitario: **{formato_gs(precio_final)}**")
         
-        # Monto total calculado automáticamente
-        monto_total_pedido = cant_ped * precio_final
-        st.text_input("Monto Total del Pedido (Gs.)", value=formato_gs(monto_total_pedido), disabled=True)
+        monto_total_prendas = cant_ped * precio_final
+        st.text_input("Subtotal Prendas (Gs.)", value=formato_gs(monto_total_prendas), disabled=True)
         
-        canal_ped = st.selectbox("Canal de Distribución", ["Instagram", "WhatsApp", "Tienda Física", "Feria", "Otro"])
+        canal_ped = st.selectbox("Canal de Venta", ["Instagram", "WhatsApp", "Tienda Física", "Feria", "Otro"])
         estado_ped = st.selectbox("Estado del Pedido", ["Entregado / Pagado", "Pendiente", "En Preparación", "Cancelado"])
 
-    # Comprobante de pago
-    comprobante_ped = st.file_uploader("Comprobante de Pago (Opcional)", type=["png", "jpg", "jpeg", "pdf"])
+    st.markdown("#### 🚚 LOGÍSTICA, TRANSPORTADORA Y PACKAGING")
+    cl1, cl2, cl3 = st.columns(3)
+    with cl1:
+        empresa_envio = st.selectbox("Transportadora / Medio", ["Retiro en Local", "AEX", "NSA Encomiendas", "Rysa", "Delivery Local (Moto)", "Otra Encomienda"])
+    with cl2:
+        costo_envio = st.number_input("Costo Envío / Flete (Gs.)", min_value=0, value=0, step=5000, format="%d")
+        st.caption(f"Flete: **{formato_gs(costo_envio)}**")
+    with cl3:
+        quien_paga_envio = st.selectbox("¿Quién asume el envío?", ["Cliente (Paga al recibir / Sumado)", "Negocio (Envío Gratis / Promoción)", "Sin Costo de Envío"])
+
+    comprobante_ped = st.file_uploader("Comprobante de Pago / Guía de Envío (Opcional)", type=["png", "jpg", "jpeg", "pdf"])
     
     btn_crear_ped = st.button("💾 ASENTAR PRENDA / PEDIDO", use_container_width=True)
     
@@ -144,10 +148,10 @@ with col_form:
         if modelo_ped.strip():
             nombre_doc = comprobante_ped.name if comprobante_ped is not None else ""
             
-            # Asociamos canal y datos de pago sin romper la estructura de la tabla
-            canal_con_pago = f"{canal_ped} | Pago: {tipo_pago_ped}"
+            # Detalle logístico en la información del canal para trazabilidad total
+            info_canal = f"{canal_ped} | Pago: {tipo_pago_ped} | Envio: {empresa_envio} ({formato_gs(costo_envio)} - {quien_paga_envio})"
             if nombre_doc:
-                canal_con_pago += f" | Doc: {nombre_doc}"
+                info_canal += f" | Doc: {nombre_doc}"
 
             nuevo_pedido = {
                 "fecha": str(fecha_ped),
@@ -160,25 +164,41 @@ with col_form:
                 "margen_ganancia": int(margen_pct),
                 "precio_venta": int(precio_final),
                 "stock_inicial": int(cant_ped),
-                "canal": canal_con_pago,
+                "canal": info_canal,
                 "estado": estado_ped
             }
             try:
                 supabase.table("pedidos_inventario").insert(nuevo_pedido).execute()
-                st.success("¡Pedido / Prenda registrado con éxito en Supabase!")
+                
+                # ASIENTO AUTOMÁTICO EN CAJA: Si el negocio cubre el envío y hay costo > 0
+                if quien_paga_envio == "Negocio (Envío Gratis / Promoción)" and costo_envio > 0:
+                    egreso_envio = {
+                        "fecha": str(fecha_ped),
+                        "tipo": "Egreso",
+                        "categoria": "Packaging / Envíos",
+                        "monto": int(costo_envio),
+                        "descripcion": f"Flete {empresa_envio} - Pedido: {modelo_ped.strip()} ({cliente_ped.strip()})"
+                    }
+                    supabase.table("transacciones").insert(egreso_envio).execute()
+                    st.info(f"🚚 Se registró automáticamente el egreso de {formato_gs(costo_envio)} por flete en Caja de Negocio.")
+
+                st.success("¡Pedido y logística asentados con éxito!")
                 st.rerun()
             except Exception as e:
-                st.error(f"Error al registrar pedido: {e}")
+                st.error(f"Error al registrar: {e}")
         else:
-            st.warning("Por favor, ingresa el modelo o nombre de la prenda.")
+            st.warning("Por favor ingresa el modelo o nombre de la prenda.")
 
 with col_calc:
     st.subheader("💡 CALCULADORA DE RENTABILIDAD & DEMANDA")
     
-    ganancia_unitaria = precio_final - costo_unit
-    st.info(f"Ganancia bruta estimada: **{formato_gs(ganancia_unitaria)}** por unidad ({margen_pct}% de margen).")
+    # Impacto del envío en la ganancia real
+    gasto_envio_negocio = costo_envio if quien_paga_envio == "Negocio (Envío Gratis / Promoción)" else 0
+    ganancia_neta_total_pedido = (monto_total_prendas - (costo_unit * cant_ped)) - gasto_envio_negocio
+    
+    st.info(f"Ganancia bruta estimada: **{formato_gs(ganancia_neta_total_pedido)}** en este pedido (descontando mercadería y flete asumido).")
 
-    # Cálculos temporales de demanda
+    # Demanda y liquidez
     hoy = datetime.now().date()
     hace_7_dias = hoy - timedelta(days=7)
     primer_dia_mes = hoy.replace(day=1)
@@ -196,17 +216,14 @@ with col_calc:
         df_temp["costo_n"] = pd.to_numeric(df_temp.get("costo", 0), errors="coerce").fillna(0)
         df_temp["precio_n"] = pd.to_numeric(df_temp.get("precio_venta", 0), errors="coerce").fillna(0)
         
-        # Pedidos del día
         df_dia = df_temp[df_temp["fecha_dt"] == hoy]
         pedidos_dia = int(df_dia["cant_n"].sum())
         
-        # Pedidos de la semana
         df_sem = df_temp[df_temp["fecha_dt"] >= hace_7_dias]
         pedidos_semana = int(df_sem["cant_n"].sum())
         capital_semana_requerido = float((df_sem["cant_n"] * df_sem["costo_n"]).sum())
         venta_semana_proyectada = float((df_sem["cant_n"] * df_sem["precio_n"]).sum())
         
-        # Pedidos del mes
         df_mes = df_temp[df_temp["fecha_dt"] >= primer_dia_mes]
         pedidos_mes = int(df_mes["cant_n"].sum())
     
@@ -242,7 +259,6 @@ if not df_pedidos.empty:
     
     st.dataframe(df_mostrar, use_container_width=True)
 
-    # Desglose de totales por producto
     st.markdown("#### 📊 TOTAL DE UNIDADES PEDIDAS POR MODELO")
     if "modelo_prenda" in df_pedidos.columns and "cantidad_num" in df_pedidos.columns:
         agrupado_prod = df_pedidos.groupby("modelo_prenda")["cantidad_num"].sum().reset_index()
