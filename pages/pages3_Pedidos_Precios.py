@@ -1,183 +1,11 @@
-<<<<<<< HEAD
-from datetime import datetime
-import pandas as pd
-import sqlite3
 import streamlit as st
-
-st.set_page_config(
-    page_title="Precios y Control de Pedidos", page_icon="🌿", layout="wide"
-)
-
-# --- ESCUDO DE SEGURIDAD ---
-if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
-  st.warning(
-      "⚠️ Acceso denegado. Por favor, inicia sesión en la página principal"
-      " (app.py)."
-  )
-  st.stop()
-# ---------------------------
-
-conn = sqlite3.connect("negocio_prendas.db", check_same_thread=False)
-cursor = conn.cursor()
-
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS pedidos_inventario (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cliente TEXT, modelo_prenda TEXT, categoria TEXT, talle TEXT, 
-        cantidad INTEGER, costo REAL, margen_ganancia REAL, precio_venta REAL, 
-        stock_inicial INTEGER, canal TEXT, estado TEXT, fecha TEXT
-    )
-"""
-)
-conn.commit()
-
-st.title("🏷️ PRECIOS Y CONTROL DE PEDIDOS")
-st.write(
-    "Gestión unificada de cálculo de precios, inventario y flujo de pedidos."
-)
-
-with st.form("form_pedidos_precios", clear_on_submit=True):
-  c1, c2, c3 = st.columns(3)
-  with c1:
-    cliente = st.text_input("Cliente")
-    modelo_prenda = st.text_input("Modelo de Prenda")
-    categoria = st.selectbox(
-        "Categoría",
-        [
-            "Remeras y Tops",
-            "Pantalones y Jeans",
-            "Abrigos y Camperas",
-            "Calzados",
-            "Accesorios",
-        ],
-    )
-  with c2:
-    talle = st.selectbox("Talle", ["XS", "S", "M", "L", "XL", "Único"])
-    cantidad = st.number_input("Cantidad", min_value=1, value=1)
-    costo = st.number_input("Costo Unitario ($)", min_value=0.0, format="%.2f")
-  with c3:
-    margen_ganancia = st.number_input(
-        "Margen de Ganancia (%)", min_value=0.0, value=50.0
-    )
-    stock_inicial = st.number_input("Stock Inicial", min_value=0, value=1)
-    canal = st.selectbox("Canal de Venta", ["Online (Redes)", "Físico"])
-    estado = st.selectbox(
-        "Estado del Pedido", ["Pendiente", "Confirmado", "Entregado", "Cancelado"]
-    )
-
-  precio_venta_sugerido = costo + (costo * (margen_ganancia / 100))
-  st.markdown(
-      f"<h3 style='color: #4f6f52;'>💵 PRECIO DE VENTA CALCULADO:"
-      f" ${precio_venta_sugerido:,.2f}</h3>",
-      unsafe_allow_html=True,
-  )
-
-  if st.form_submit_button("💾 Guardar Nuevo Pedido / Prenda"):
-    fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute(
-        """
-            INSERT INTO pedidos_inventario 
-            (cliente, modelo_prenda, categoria, talle, cantidad, costo, margen_ganancia, precio_venta, stock_inicial, canal, estado, fecha)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            cliente,
-            modelo_prenda,
-            categoria,
-            talle,
-            cantidad,
-            costo,
-            margen_ganancia,
-            precio_venta_sugerido,
-            stock_inicial,
-            canal,
-            estado,
-            fecha_actual,
-        ),
-    )
-    conn.commit()
-    st.success("¡Registro guardado exitosamente!")
-    st.rerun()
-
-st.markdown("---")
-st.subheader("📋 Registro General de Pedidos y Precios")
-
-df_unificado = pd.read_sql_query(
-    "SELECT * FROM pedidos_inventario ORDER BY id DESC", conn
-)
-
-if not df_unificado.empty:
-  st.dataframe(df_unificado, use_container_width=True)
-
-  st.markdown("### ⚙️ ADMINISTRAR REGISTRO")
-  ids_disponibles = df_unificado["id"].tolist()
-  id_seleccionado = st.selectbox(
-      "Seleccione ID de Pedido/Prenda a administrar:", ids_disponibles
-  )
-  fila_sel = df_unificado[df_unificado["id"] == id_seleccionado].iloc[0]
-
-  with st.form("form_editar_pedido"):
-    e_cliente = st.text_input("Cliente", value=fila_sel["cliente"])
-    e_modelo = st.text_input("Modelo de Prenda", value=fila_sel["modelo_prenda"])
-    e_costo = st.number_input(
-        "Costo Unitario ($)",
-        min_value=0.0,
-        value=float(fila_sel["costo"]),
-        format="%.2f",
-    )
-    e_margen = st.number_input(
-        "Margen de Ganancia (%)",
-        min_value=0.0,
-        value=float(fila_sel["margen_ganancia"]),
-    )
-    e_estado = st.selectbox(
-        "Estado del Pedido",
-        ["Pendiente", "Confirmado", "Entregado", "Cancelado"],
-    )
-
-    nuevo_precio_calc = e_costo + (e_costo * (e_margen / 100))
-    st.info(f"💡 Nuevo Precio Calculado: ${nuevo_precio_calc:,.2f}")
-
-    col_b1, col_b2 = st.columns(2)
-    if col_b1.form_submit_button("🔄 Actualizar Registro"):
-      cursor.execute(
-          """
-                UPDATE pedidos_inventario 
-                SET cliente=?, modelo_prenda=?, costo=?, margen_ganancia=?, precio_venta=?, estado=?
-                WHERE id=?
-            """,
-          (
-              e_cliente,
-              e_modelo,
-              e_costo,
-              e_margen,
-              nuevo_precio_calc,
-              e_estado,
-              id_seleccionado,
-          ),
-      )
-      conn.commit()
-      st.success("¡Registro actualizado!")
-      st.rerun()
-
-    if col_b2.form_submit_button("🗑️ Borrar Registro"):
-      cursor.execute(
-          "DELETE FROM pedidos_inventario WHERE id=?", (id_seleccionado,)
-      )
-      conn.commit()
-      st.success("¡Registro eliminado!")
-      st.rerun()
-else:
-  st.info("Aún no hay registros en este módulo.")
-=======
-import streamlit as st
-import sqlite3
 import pandas as pd
 from datetime import datetime
+from supabase import create_client, Client
 
-st.set_page_config(page_title="Precios y Pedidos | PROYECTO X", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Pedidos & Precios | PROYECTO X", page_icon="🏷️", layout="wide")
 
+# CSS Estilo Futurista
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -186,105 +14,176 @@ st.markdown("""
     section[data-testid="stSidebar"] { background-color: #0b1a2f !important; }
     .stButton>button {
         background: linear-gradient(135deg, #4388FF 0%, #2f6de0 100%) !important;
-        color: white !important; border: none !important; border-radius: 8px !important; font-weight: 600 !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
     }
-    .stTextInput input, .stNumberInput input, .stSelectbox select, .stTextArea textarea {
-        background-color: #0d1b30 !important; color: #E6EDF5 !important; border: 1px solid #1E365D !important;
+    [data-testid="stMetricValue"] { color: #21D4C4 !important; font-weight: 700 !important; }
+    [data-testid="stMetricLabel"] { color: #9FB2C8 !important; }
+    .stTextInput input, .stNumberInput input, .stSelectbox select {
+        background-color: #0d1b30 !important;
+        color: #E6EDF5 !important;
+        border: 1px solid #1E365D !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
+# Escudo de seguridad
 if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
-    st.warning("⚠️ Acceso denegado. Por favor, inicia sesión en la página principal.")
+    st.warning("⚠️ Acceso restringido. Por favor autentíquese en app.py.")
     st.stop()
 
-conn = sqlite3.connect("negocio_prendas.db", check_same_thread=False)
-cursor = conn.cursor()
+# Conexión a Supabase
+@st.cache_resource
+def init_supabase() -> Client:
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
+    return create_client(url, key)
 
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS pedidos_inventario (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cliente TEXT, modelo_prenda TEXT, categoria TEXT, talle TEXT, 
-        cantidad INTEGER, costo REAL, margen_ganancia REAL, precio_venta REAL, 
-        stock_inicial INTEGER, canal TEXT, estado TEXT, fecha TEXT
-    )
-""")
-conn.commit()
+supabase = init_supabase()
 
-st.title("🏷️ PRECIOS & GESTIÓN DE PEDIDOS")
-st.caption("ENGINEERING PRICING & INVENTORY PIPELINE")
+def formato_gs(valor):
+    try:
+        val_int = int(round(float(valor or 0)))
+        return f"Gs. {val_int:,}".replace(",", ".")
+    except Exception:
+        return "Gs. 0"
 
-with st.form("form_pedidos_precios", clear_on_submit=True):
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        cliente = st.text_input("Cliente Destinatario")
-        modelo_prenda = st.text_input("Modelo / Prenda")
-        categoria = st.selectbox("Categoría Textil", ["Remeras y Tops", "Pantalones y Jeans", "Abrigos y Camperas", "Calzados", "Accesorios"])
-    with c2:
-        talle = st.selectbox("Talla", ["XS", "S", "M", "L", "XL", "Único"])
-        cantidad = st.number_input("Cantidad de Unidades", min_value=1, value=1)
-        costo = st.number_input("Costo Unitario ($)", min_value=0.0, format="%.2f")
-    with c3:
-        margen_ganancia = st.number_input("Margen Comercial (%)", min_value=0.0, value=50.0)
-        stock_inicial = st.number_input("Inventario Inicial", min_value=0, value=1)
-        canal = st.selectbox("Canal de Distribución", ["Online (Redes)", "Físico"])
-        estado = st.selectbox("Estado del Pedido", ["Pendiente", "Confirmado", "Entregado", "Cancelado"])
+# Cargar pedidos e inventario desde Supabase
+def cargar_pedidos():
+    try:
+        res = supabase.table("pedidos_inventario").select("*").order("id", desc=True).execute()
+        if res.data:
+            return pd.DataFrame(res.data)
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error al conectar con Supabase: {e}")
+        return pd.DataFrame()
 
-    precio_venta_sugerido = costo + (costo * (margen_ganancia / 100))
-    st.markdown(f"""
-        <div style="background-color: #10213A; border: 1px solid #1E365D; border-radius: 10px; padding: 15px; margin: 15px 0;">
-            <p style="color: #9FB2C8; margin: 0; font-size: 0.85rem;">PRECIO DE VENTA PROYECTADO</p>
-            <h2 style="color: #21D4C4; margin: 0; font-size: 2rem;">${precio_venta_sugerido:,.2f}</h2>
-        </div>
-    """, unsafe_allow_html=True)
+df_pedidos = cargar_pedidos()
 
-    if st.form_submit_button("⚡ GENERAR PEDIDO / ALTA DE PRENDA"):
-        fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute("""
-            INSERT INTO pedidos_inventario 
-            (cliente, modelo_prenda, categoria, talle, cantidad, costo, margen_ganancia, precio_venta, stock_inicial, canal, estado, fecha)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (cliente, modelo_prenda, categoria, talle, cantidad, costo, margen_ganancia, precio_venta_sugerido, stock_inicial, canal, estado, fecha_actual))
-        conn.commit()
-        st.success("Pedido y precio sincronizados en inventario.")
-        st.rerun()
+st.title("🏷️ GESTIÓN DE PEDIDOS, PRECIOS E INVENTARIO")
+st.caption("CONTROL DE CATÁLOGO Y CATAPULTA DE MÁRGENES")
+
+# Métricas Generales
+total_articulos = 0
+valor_inventario = 0.0
+pedidos_pendientes = 0
+
+if not df_pedidos.empty:
+    if "cantidad" in df_pedidos.columns:
+        df_pedidos["cantidad_num"] = pd.to_numeric(df_pedidos["cantidad"], errors="coerce").fillna(0)
+        total_articulos = int(df_pedidos["cantidad_num"].sum())
+    
+    if "precio_venta" in df_pedidos.columns and "cantidad_num" in df_pedidos.columns:
+        df_pedidos["precio_num"] = pd.to_numeric(df_pedidos["precio_venta"], errors="coerce").fillna(0)
+        valor_inventario = float((df_pedidos["precio_num"] * df_pedidos["cantidad_num"]).sum())
+        
+    if "estado" in df_pedidos.columns:
+        pedidos_pendientes = int((df_pedidos["estado"] == "Pendiente").sum())
+
+m1, m2, m3 = st.columns(3)
+m1.metric("📦 VOLUMEN TOTAL PRENDAS", f"{total_articulos} uds.")
+m2.metric("💎 VALOR ESTIMADO CATÁLOGO", formato_gs(valor_inventario))
+m3.metric("⏳ PEDIDOS EN ESPERA", f"{pedidos_pendientes} pedidos")
 
 st.markdown("---")
-st.subheader("📋 Pipeline de Pedidos & Precios")
-df_unificado = pd.read_sql_query("SELECT * FROM pedidos_inventario ORDER BY id DESC", conn)
 
-if not df_unificado.empty:
-    st.dataframe(df_unificado, use_container_width=True)
-    st.markdown("### ⚙️ CONTROL Y MODIFICACIÓN DE REGISTROS")
-    id_seleccionado = st.selectbox("ID de Registro a Modificar:", df_unificado['id'].tolist())
-    fila_sel = df_unificado[df_unificado['id'] == id_seleccionado].iloc[0]
+col_form, col_calc = st.columns([2, 1])
 
-    with st.form("form_editar_pedido"):
-        e_cliente = st.text_input("Cliente", value=fila_sel['cliente'])
-        e_modelo = st.text_input("Modelo", value=fila_sel['modelo_prenda'])
-        e_costo = st.number_input("Costo ($)", min_value=0.0, value=float(fila_sel['costo']), format="%.2f")
-        e_margen = st.number_input("Margen (%)", min_value=0.0, value=float(fila_sel['margen_ganancia']))
-        e_estado = st.selectbox("Estado", ["Pendiente", "Confirmado", "Entregado", "Cancelado"])
+with col_form:
+    st.subheader("🛍️ Registrar Pedido / Stock de Prenda")
+    
+    with st.form("form_pedido", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            fecha_ped = st.date_input("Fecha de Registro", value=datetime.now())
+            cliente_ped = st.text_input("Cliente / Destino", placeholder="Ej: Venta Local, María González...")
+            modelo_ped = st.text_input("Modelo de Prenda / Descripción", placeholder="Ej: Remera Oversize Estampada")
+            cat_ped = st.selectbox("Categoría", ["Remeras", "Pantalones / Jeans", "Buzos / Hoodies", "Camperas", "Shorts", "Accesorios", "Otros"])
+            talle_ped = st.selectbox("Talle", ["XS", "S", "M", "L", "XL", "XXL", "Único", "Surtido"])
+        
+        with c2:
+            cant_ped = st.number_input("Cantidad de Unidades", min_value=1, value=1, step=1)
+            costo_unit = st.number_input("Costo Unitario (Gs.)", min_value=0, value=35000, step=5000, format="%d")
+            margen_pct = st.slider("Margen de Ganancia Deseado (%)", min_value=10, max_value=200, value=60, step=5)
+            
+            # Cálculo sugerido en tiempo real
+            precio_sugerido = int(costo_unit * (1 + margen_pct / 100))
+            precio_final = st.number_input("Precio de Venta Final (Gs.)", min_value=0, value=precio_sugerido, step=5000, format="%d")
+            
+            canal_ped = st.selectbox("Canal de Distribución", ["Instagram", "WhatsApp", "Tienda Física", "Feria", "Otro"])
+            estado_ped = st.selectbox("Estado del Pedido", ["Entregado / Pagado", "Pendiente", "En Preparación", "Cancelado"])
+        
+        btn_crear_ped = st.form_submit_button("💾 ASENTAR PRENDA / PEDIDO (ENTER)")
+        
+        if btn_crear_ped:
+            if modelo_ped.strip():
+                nuevo_pedido = {
+                    "fecha": str(fecha_ped),
+                    "cliente": cliente_ped,
+                    "modelo_prenda": modelo_ped,
+                    "categoria": cat_ped,
+                    "talle": talle_ped,
+                    "cantidad": int(cant_ped),
+                    "costo": int(costo_unit),
+                    "margen_ganancia": int(margen_pct),
+                    "precio_venta": int(precio_final),
+                    "stock_inicial": int(cant_ped),
+                    "canal": canal_ped,
+                    "estado": estado_ped
+                }
+                try:
+                    supabase.table("pedidos_inventario").insert(nuevo_pedido).execute()
+                    st.success("Prenda / Pedido registrado exitosamente en la nube.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al guardar: {e}")
+            else:
+                st.warning("Por favor, ingresa el modelo o nombre de la prenda.")
 
-        nuevo_precio_calc = e_costo + (e_costo * (e_margen / 100))
-        st.info(f"💡 Precio recalculado: ${nuevo_precio_calc:,.2f}")
+with col_calc:
+    st.subheader("💡 Calculadora de Rentabilidad")
+    st.info(f"Con un costo base de `{formato_gs(costo_unit)}` y margen del `{margen_pct}%`, tu ganancia bruta unitaria estimada es de `{formato_gs(precio_final - costo_unit)}`.")
 
-        col_b1, col_b2 = st.columns(2)
-        if col_b1.form_submit_button("🔄 ACTUALIZAR DATOS"):
-            cursor.execute("""
-                UPDATE pedidos_inventario 
-                SET cliente=?, modelo_prenda=?, costo=?, margen_ganancia=?, precio_venta=?, estado=?
-                WHERE id=?
-            """, (e_cliente, e_modelo, e_costo, e_margen, nuevo_precio_calc, e_estado, id_seleccionado))
-            conn.commit()
-            st.success("Datos actualizados correctamente.")
-            st.rerun()
+st.markdown("---")
+st.subheader("📋 Catálogo y Registro Maestro de Pedidos")
 
-        if col_b2.form_submit_button("🗑️ PURGAR ITEM"):
-            cursor.execute("DELETE FROM pedidos_inventario WHERE id=?", (id_seleccionado,))
-            conn.commit()
-            st.success("Item eliminado del registro.")
-            st.rerun()
+if not df_pedidos.empty:
+    cols_ver = [c for c in ["id", "fecha", "cliente", "modelo_prenda", "categoria", "talle", "cantidad", "costo", "precio_venta", "canal", "estado"] if c in df_pedidos.columns]
+    st.dataframe(df_pedidos[cols_ver], use_container_width=True)
+
+    st.markdown("### ⚙️ Modificar o Actualizar Pedido / Prenda")
+    sel_ped_id = st.selectbox("Seleccione ID de registro:", df_pedidos["id"].tolist())
+    fila_ped = df_pedidos[df_pedidos["id"] == sel_ped_id].iloc[0]
+
+    with st.form("form_edit_pedido"):
+        e_modelo = st.text_input("Modelo", value=str(fila_ped.get("modelo_prenda", "")))
+        e_precio = st.number_input("Precio de Venta (Gs.)", value=int(fila_ped.get("precio_venta", 0)), step=5000, format="%d")
+        estados_opts = ["Entregado / Pagado", "Pendiente", "En Preparación", "Cancelado"]
+        idx_estado = estados_opts.index(fila_ped["estado"]) if fila_ped.get("estado") in estados_opts else 0
+        e_estado = st.selectbox("Estado", estados_opts, index=idx_estado)
+
+        c_bt1, c_bt2 = st.columns(2)
+        if c_bt1.form_submit_button("🔄 ACTUALIZAR (ENTER)"):
+            try:
+                supabase.table("pedidos_inventario").update({
+                    "modelo_prenda": e_modelo,
+                    "precio_venta": int(e_precio),
+                    "estado": e_estado
+                }).eq("id", sel_ped_id).execute()
+                st.success("Registro actualizado.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al actualizar: {e}")
+
+        if c_bt2.form_submit_button("🗑️ ELIMINAR REGISTRO"):
+            try:
+                supabase.table("pedidos_inventario").delete().eq("id", sel_ped_id).execute()
+                st.success("Registro eliminado de Supabase.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al eliminar: {e}")
 else:
-    st.info("No existen registros de pedidos activos.")
->>>>>>> c919b70 (Rediseño completo estilo Futurista Premium)
+    st.info("Sin prendas o pedidos cargados todavía en la nube.")
