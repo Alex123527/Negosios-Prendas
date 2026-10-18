@@ -2,4 +2,5 @@ streamlit
 pandas
 reportlab
 openpyxl 
-st-gsheets-connection
+supabase
+
