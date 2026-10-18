@@ -237,7 +237,7 @@ with col_calc:
 
 st.markdown("---")
 
-# ENCABEZADO Y ZONA DE EXPORTACIÓN EXCEL / CSV
+# ENCABEZADO Y ZONA DE EXPORTACIÓN EXCEL (.XLSX) Y PDF
 col_tit_cat, col_btn_exp1, col_btn_exp2 = st.columns([2, 1, 1])
 
 with col_tit_cat:
@@ -258,14 +258,81 @@ if not df_pedidos.empty:
         df_mostrar["costo"] = cost_num.apply(formato_gs)
         df_mostrar["precio_venta"] = p_num.apply(formato_gs)
 
-    # Botón 1: Descargar Excel (.xlsx / .csv compatible)
-    csv_datos = df_mostrar.to_csv(index=False).encode('utf-8-sig')
+    # 1. GENERAR EXCEL REAL (.XLSX)
+    buffer_excel = io.BytesIO()
+    with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+        df_mostrar.to_excel(writer, index=False, sheet_name='Pedidos')
+    excel_data = buffer_excel.getvalue()
+
     with col_btn_exp1:
         st.download_button(
-            label="📗 Exportar Excel (CSV)",
-            data=csv_datos,
-            file_name=f"pedidos_inventario_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
+            label="📗 Descargar Excel (.xlsx)",
+            data=excel_data,
+            file_name=f"Pedidos_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+
+    # 2. GENERAR VISTA / REPORTE IMPRIMIBLE A PDF (HTML con diseño listo para Imprimir/Guardar PDF)
+    filas_html = ""
+    for _, f in df_mostrar.iterrows():
+        filas_html += f"""
+        <tr>
+            <td>{f.get('id', '')}</td>
+            <td>{f.get('fecha', '')}</td>
+            <td><strong>{f.get('cliente', '')}</strong></td>
+            <td>{f.get('modelo_prenda', '')} ({f.get('talle', '')})</td>
+            <td style='text-align: center;'>{f.get('cantidad', '')}</td>
+            <td style='text-align: right;'>{f.get('TOTAL PEDIDO (GS.)', '')}</td>
+            <td>{f.get('estado', '')}</td>
+        </tr>
+        """
+        
+    html_reporte = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Reporte de Pedidos - PROYECTO X</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 20px; color: #222; }}
+            h2 {{ color: #071426; margin-bottom: 5px; }}
+            p {{ color: #666; font-size: 13px; margin-top: 0; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }}
+            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+            th {{ background-color: #0d1b30; color: white; }}
+            tr:nth-child(even) {{ background-color: #f9f9f9; }}
+            @media print {{
+                .no-print {{ display: none; }}
+            }}
+        </style>
+    </head>
+    <body onload="window.print()">
+        <div class="no-print" style="margin-bottom: 15px; background: #eef; padding: 10px; border-radius: 5px;">
+            ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Elige <strong>"Guardar como PDF"</strong> en la impresora para descargarlo.</em>
+        </div>
+        <h2>📦 REPORTE Y DESPACHO DE PEDIDOS</h2>
+        <p>Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th><th>Fecha</th><th>Cliente</th><th>Prenda / Calce</th><th>Cant.</th><th>Total (Gs.)</th><th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {filas_html}
+            </tbody>
+        </table>
+    </body>
+    </html>
+    """
+
+    with col_btn_exp2:
+        st.download_button(
+            label="📕 Imprimir / PDF",
+            data=html_reporte.encode('utf-8'),
+            file_name=f"Reporte_Pedidos_{datetime.now().strftime('%Y%m%d')}.html",
+            mime="text/html",
             use_container_width=True
         )
 
