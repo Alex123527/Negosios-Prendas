@@ -63,11 +63,10 @@ def cargar_transacciones():
 
 df_tx = cargar_transacciones()
 
-# Título principal limpio
 st.title("💼 CAJA DE NEGOCIO")
 st.caption("GESTIÓN OPERATIVA Y RENTABILIDAD EN LA NUBE")
 
-# Cálculos de Totales
+# Totales
 ingresos_total = 0.0
 egresos_total = 0.0
 
@@ -86,14 +85,14 @@ col3.metric("💵 SALDO NETO DE CAJA", formato_gs(saldo_neto))
 
 st.markdown("---")
 
-col_form, col_resumen = st.columns([2, 1])
+col_form, col_resumen = st.columns([2.4, 1])
 
 with col_form:
-    # Cambio: Solo dice "OPERACION DE CAJA" y se quitó la línea del tip
     st.subheader("➕ OPERACION DE CAJA")
     
     with st.form("form_caja", clear_on_submit=True):
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
+        
         with c1:
             fecha_op = st.date_input("Fecha", value=datetime.now())
             tipo_op = st.selectbox("Tipo de Movimiento", ["Ingreso", "Egreso"])
@@ -101,26 +100,34 @@ with col_form:
                 "Venta de Prenda", "Cobro de Deuda", "Inversión Mercadería", 
                 "Packaging / Envíos", "Publicidad", "Alquiler / Servicios", "Otros Gastos"
             ])
-            # Cuadro independiente: Cliente
-            cliente_op = st.text_input("Cliente", placeholder="Ej: María González / Consumidor Final")
+
         with c2:
+            cliente_op = st.text_input("Cliente", placeholder="Ej: María González")
+            concepto_op = st.text_input("Concepto", placeholder="Ej: 2x Calzas Deportivas")
             monto_op = st.number_input("Monto (Gs.)", min_value=0, value=0, step=5000, format="%d")
-            # Cuadros independientes: Concepto y Detalle
-            concepto_op = st.text_input("Concepto", placeholder="Ej: Venta de Leggins básicas")
-            detalle_op = st.text_input("Detalle", placeholder="Ej: Pago en efectivo / Entrega delivery")
-        
-        # Muestra en tiempo real del monto formateado con puntos
-        st.caption(f"Monto ingresado: **{formato_gs(monto_op)}**")
+            st.caption(f"Monto: **{formato_gs(monto_op)}**")
+
+        with c3:
+            estado_entrega = st.selectbox("Estado del Pedido", ["Entregado", "En proceso", "Rechazado"])
+            tipo_pago = st.selectbox("Tipo de Pago", ["Efectivo", "Transferencia Bancaria", "Billetera Zimple / Giros", "Tarjeta de Débito/Crédito", "Otro"])
+            comprobante = st.file_uploader("Comprobante de Pago", type=["png", "jpg", "jpeg", "pdf"])
+
+        detalle_op = st.text_input("Detalle Adicional", placeholder="Ej: Entregado por delivery / Pedido vía WhatsApp")
         
         btn_guardar = st.form_submit_button("💾 ASENTAR OPERACIÓN")
         
         if btn_guardar:
-            # Unimos los campos en el texto descriptivo para mantener compatibilidad total con la base de datos
             partes_desc = []
             if cliente_op.strip():
                 partes_desc.append(f"Cliente: {cliente_op.strip()}")
             if concepto_op.strip():
                 partes_desc.append(f"Concepto: {concepto_op.strip()}")
+            if estado_entrega:
+                partes_desc.append(f"Estado: {estado_entrega}")
+            if tipo_pago:
+                partes_desc.append(f"Pago: {tipo_pago}")
+            if comprobante is not None:
+                partes_desc.append(f"Doc: {comprobante.name}")
             if detalle_op.strip():
                 partes_desc.append(f"Detalle: {detalle_op.strip()}")
             
@@ -144,7 +151,6 @@ with col_form:
                 st.warning("Completa los datos de la operación e ingresa un monto mayor a 0.")
 
 with col_resumen:
-    # Cambio: En mayúsculas completas
     st.subheader("📊 MOVIMIENTO POR TIPO")
     st.write(f"• **Ingresos totales:** `{formato_gs(ingresos_total)}`")
     st.write(f"• **Egresos totales:** `{formato_gs(egresos_total)}`")
@@ -152,13 +158,11 @@ with col_resumen:
     st.write(f"• **Margen operativo:** `{margen:.1f}%`")
 
 st.markdown("---")
-# Cambio: En mayúsculas completas
 st.subheader("📋 LIBRO DIARIO DE CAJA")
 
 if not df_tx.empty:
     cols_mostrar = [c for c in ["id", "fecha", "tipo", "categoria", "monto", "descripcion"] if c in df_tx.columns]
     
-    # Formateo visual del monto con puntos separadores
     df_visual = df_tx[cols_mostrar].copy()
     if "monto" in df_visual.columns:
         df_visual["monto"] = df_visual["monto"].apply(formato_gs)
