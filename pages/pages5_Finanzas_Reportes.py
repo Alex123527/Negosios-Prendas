@@ -1,269 +1,166 @@
-<<<<<<< HEAD
-
-from datetime import datetime
-import io
-import openpyxl
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-import pandas as pd
-import sqlite3
 import streamlit as st
-
-st.set_page_config(page_title="Gráficos y Finanzas", page_icon="🌿", layout="wide")
-
-# --- ESCUDO DE SEGURIDAD ---
-if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
-  st.warning(
-      "⚠️ Acceso denegado. Por favor, inicia sesión en la página principal"
-      " (app.py)."
-  )
-  st.stop()
-# ---------------------------
-
-conn = sqlite3.connect("negocio_prendas.db", check_same_thread=False)
-cursor = conn.cursor()
-
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS transacciones (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tipo TEXT, categoria TEXT, monto REAL, descripcion TEXT, fecha TEXT
-    )
-"""
-)
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS pedidos_inventario (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cliente TEXT, modelo_prenda TEXT, categoria TEXT, talle TEXT, 
-        cantidad INTEGER, costo REAL, margen_ganancia REAL, precio_venta REAL, 
-        stock_inicial INTEGER, canal TEXT, estado TEXT, fecha TEXT
-    )
-"""
-)
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS gastos_personales (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        fecha TEXT, descripcion TEXT, categoria TEXT, metodo_pago TEXT, monto REAL, comprobante_nombre TEXT
-    )
-"""
-)
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS deudas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cliente TEXT, concepto TEXT, monto_deuda REAL, estado TEXT, fecha TEXT
-    )
-"""
-)
-conn.commit()
-
-st.title("📊 Análisis Financiero Global")
-st.write(
-    "Resumen general de entradas, salidas, balance y exportación de reportes."
-)
-
-df_trans = pd.read_sql_query(
-    "SELECT * FROM transacciones ORDER BY id DESC", conn
-)
-df_pedidos_fin = pd.read_sql_query("SELECT * FROM pedidos_inventario", conn)
-
-if not df_trans.empty or not df_pedidos_fin.empty:
-  entradas = (
-      df_trans[df_trans["tipo"] == "Entrada (Venta/Cobro)"]["monto"].sum()
-      if not df_trans.empty
-      else 0.0
-  )
-  salidas = (
-      df_trans[df_trans["tipo"] == "Salida (Gasto/Deuda)"]["monto"].sum()
-      if not df_trans.empty
-      else 0.0
-  )
-  ventas_estimadas = (
-      (df_pedidos_fin["cantidad"] * df_pedidos_fin["precio_venta"]).sum()
-      if not df_pedidos_fin.empty
-      else 0.0
-  )
-
-  c1, c2, c3, c4 = st.columns(4)
-  c1.metric("📥 Entradas Caja", f"${entradas:,.2f}")
-  c2.metric("📤 Salidas Caja", f"${salidas:,.2f}")
-  c3.metric("🛍️ Ventas Catálogo", f"${ventas_estimadas:,.2f}")
-  c4.metric("⚖️ Balance Neto", f"${entradas - salidas:,.2f}")
-
-  st.markdown("---")
-  if not df_trans.empty:
-    st.subheader("Gráfico de Movimientos")
-    st.bar_chart(df_trans.groupby("tipo")["monto"].sum())
-else:
-  st.info("Sin datos financieros suficientes para graficar.")
-
-st.markdown("---")
-st.title("📄 Exportar Reportes (PDF y Excel)")
-tab_pdf, tab_excel = st.tabs(["📄 Reporte PDF", "📊 Exportar a Excel"])
-
-with tab_pdf:
-  df_rep = pd.read_sql_query("SELECT * FROM transacciones", conn)
-  if not df_rep.empty and st.button("Generar PDF de Transacciones"):
-    buffer = io.BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
-    p.drawString(
-        50, height - 50, "PROYECTO X - Reporte Financiero de Transacciones"
-    )
-    y = height - 90
-    for idx, row in df_rep.iterrows():
-      p.drawString(
-          50,
-          y,
-          f"{row['tipo']} | {row['categoria']} | ${row['monto']} |"
-          f" {row['fecha']}",
-      )
-      y -= 20
-      if y < 50:
-        p.showPage()
-        y = height - 50
-    p.save()
-    buffer.seek(0)
-    st.download_button(
-        "⬇️ Descargar Reporte PDF",
-        data=buffer,
-        file_name="reporte_financiero.pdf",
-        mime="application/pdf",
-    )
-  else:
-    st.warning("No hay transacciones registradas para exportar a PDF.")
-
-with tab_excel:
-  st.write("Descarga tus bases de datos completas en Excel (.xlsx).")
-  if st.button("📥 Generar Archivo Excel"):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-      pd.read_sql_query("SELECT * FROM transacciones", conn).to_excel(
-          writer, index=False, sheet_name="Caja Negocio"
-      )
-      pd.read_sql_query("SELECT * FROM pedidos_inventario", conn).to_excel(
-          writer, index=False, sheet_name="Pedidos e Inventario"
-      )
-      pd.read_sql_query("SELECT * FROM gastos_personales", conn).to_excel(
-          writer, index=False, sheet_name="Gastos Personales"
-      )
-      pd.read_sql_query("SELECT * FROM deudas", conn).to_excel(
-          writer, index=False, sheet_name="Deudas y Fiados"
-      )
-    output.seek(0)
-    st.download_button(
-        label="⬇️ Descargar Excel Completo (PROYECTO X)",
-        data=output,
-        file_name="ProyectoX_Reporte_Completo.xlsx",
-        mime=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        ),
-    )
-=======
-
-import streamlit as st
-import sqlite3
 import pandas as pd
-import io
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-import openpyxl
+from supabase import create_client, Client
 
-st.set_page_config(page_title="Analítica Financiera | PROYECTO X", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Finanzas y Reportes | PROYECTO X", page_icon="📈", layout="wide")
 
+# CSS Estilo Futurista Premium
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     .stApp { background-color: #071426; color: #E6EDF5; }
     section[data-testid="stSidebar"] { background-color: #0b1a2f !important; }
-    [data-testid="stMetricValue"] { color: #21D4C4 !important; font-weight: 700 !important; }
-    [data-testid="stMetricLabel"] { color: #9FB2C8 !important; }
     .stButton>button {
         background: linear-gradient(135deg, #4388FF 0%, #2f6de0 100%) !important;
-        color: white !important; border: none !important; border-radius: 8px !important; font-weight: 600 !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
     }
+    [data-testid="stMetricValue"] { color: #21D4C4 !important; font-weight: 700 !important; }
+    [data-testid="stMetricLabel"] { color: #9FB2C8 !important; }
     </style>
 """, unsafe_allow_html=True)
 
+# Escudo de seguridad
 if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
-    st.warning("⚠️ Acceso denegado. Por favor, inicia sesión en la página principal.")
+    st.warning("⚠️ Acceso restringido. Por favor autentíquese en app.py.")
     st.stop()
 
-conn = sqlite3.connect("negocio_prendas.db", check_same_thread=False)
-cursor = conn.cursor()
+# Conexión a Supabase
+@st.cache_resource
+def init_supabase() -> Client:
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
+    return create_client(url, key)
 
-# Verificación de integridad de tablas
-cursor.execute("CREATE TABLE IF NOT EXISTS transacciones (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, categoria TEXT, monto REAL, descripcion TEXT, fecha TEXT)")
-cursor.execute("CREATE TABLE IF NOT EXISTS pedidos_inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente TEXT, modelo_prenda TEXT, categoria TEXT, talle TEXT, cantidad INTEGER, costo REAL, margen_ganancia REAL, precio_venta REAL, stock_inicial INTEGER, canal TEXT, estado TEXT, fecha TEXT)")
-cursor.execute("CREATE TABLE IF NOT EXISTS gastos_personales (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, descripcion TEXT, categoria TEXT, metodo_pago TEXT, monto REAL, comprobante_nombre TEXT)")
-cursor.execute("CREATE TABLE IF NOT EXISTS deudas (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente TEXT, concepto TEXT, monto_deuda REAL, estado TEXT, fecha TEXT)")
-conn.commit()
+supabase = init_supabase()
 
-st.title("📊 ANALÍTICA FINANCIERA & REPORTES")
-st.caption("INTELLIGENCE ENGINE & GLOBAL DATA EXPORT")
+def formato_gs(valor):
+    try:
+        val_int = int(round(float(valor or 0)))
+        return f"Gs. {val_int:,}".replace(",", ".")
+    except Exception:
+        return "Gs. 0"
 
-df_trans = pd.read_sql_query("SELECT * FROM transacciones ORDER BY id DESC", conn)
-df_pedidos_fin = pd.read_sql_query("SELECT * FROM pedidos_inventario", conn)
+# Carga de datos de todas las tablas de Supabase
+@st.cache_data(ttl=60)
+def cargar_todos_los_datos():
+    try:
+        res_gp = supabase.table("gastos_personales").select("*").execute()
+        res_tx = supabase.table("transacciones").select("*").execute()
+        res_ped = supabase.table("pedidos_inventario").select("*").execute()
+        res_deu = supabase.table("deudas").select("*").execute()
+        
+        df_gp = pd.DataFrame(res_gp.data) if res_gp.data else pd.DataFrame()
+        df_tx = pd.DataFrame(res_tx.data) if res_tx.data else pd.DataFrame()
+        df_ped = pd.DataFrame(res_ped.data) if res_ped.data else pd.DataFrame()
+        df_deu = pd.DataFrame(res_deu.data) if res_deu.data else pd.DataFrame()
+        return df_gp, df_tx, df_ped, df_deu
+    except Exception as e:
+        st.error(f"Error al sincronizar reportes: {e}")
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-if not df_trans.empty or not df_pedidos_fin.empty:
-    entradas = df_trans[df_trans['tipo'] == 'Entrada (Venta/Cobro)']['monto'].sum() if not df_trans.empty else 0.0
-    salidas = df_trans[df_trans['tipo'] == 'Salida (Gasto/Deuda)']['monto'].sum() if not df_trans.empty else 0.0
-    ventas_estimadas = (df_pedidos_fin['cantidad'] * df_pedidos_fin['precio_venta']).sum() if not df_pedidos_fin.empty else 0.0
+df_gp, df_tx, df_ped, df_deu = cargar_todos_los_datos()
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("📥 ENTRADAS CAJA", f"${entradas:,.2f}")
-    c2.metric("📤 SALIDAS CAJA", f"${salidas:,.2f}")
-    c3.metric("🛍️ VENTAS CATÁLOGO", f"${ventas_estimadas:,.2f}")
-    c4.metric("⚖️ BALANCE NETO", f"${entradas - salidas:,.2f}")
+st.title("📈 BALANCE GENERAL & INTELIGENCIA FINANCIERA")
+st.caption("CONSOLIDADO EJECUTIVO EN TIEMPO REAL DESDE SUPABASE")
 
-    st.markdown("---")
-    if not df_trans.empty:
-        st.subheader("📈 Flujo de Caja por Tipo")
-        st.bar_chart(df_trans.groupby("tipo")["monto"].sum(), color="#9670FF")
-else:
-    st.info("Sin registros suficientes para graficar.")
+if st.button("🔄 Actualizar Datos en Vivo"):
+    st.cache_data.clear()
+    st.rerun()
+
+# 1. Cálculos de Negocio (Caja)
+ingresos_negocio = 0.0
+egresos_negocio = 0.0
+if not df_tx.empty and "tipo" in df_tx.columns and "monto" in df_tx.columns:
+    df_tx["monto_num"] = pd.to_numeric(df_tx["monto"], errors="coerce").fillna(0)
+    ingresos_negocio = float(df_tx[df_tx["tipo"] == "Ingreso"]["monto_num"].sum())
+    egresos_negocio = float(df_tx[df_tx["tipo"] == "Egreso"]["monto_num"].sum())
+
+flujo_neto_negocio = ingresos_negocio - egresos_negocio
+
+# 2. Cálculos de Finanzas Personales
+gastos_personales_total = 0.0
+if not df_gp.empty and "monto" in df_gp.columns:
+    df_gp["monto_num"] = pd.to_numeric(df_gp["monto"], errors="coerce").fillna(0)
+    gastos_personales_total = float(df_gp["monto_num"].sum())
+
+# 3. Cuentas por Cobrar (Deudas activas)
+cuentas_pendientes = 0.0
+if not df_deu.empty and "monto_deuda" in df_deu.columns and "estado" in df_deu.columns:
+    df_deu["monto_num"] = pd.to_numeric(df_deu["monto_deuda"], errors="coerce").fillna(0)
+    cuentas_pendientes = float(df_deu[df_deu["estado"] == "Pendiente"]["monto_num"].sum())
+
+# 4. Valoración de Stock
+valor_stock_proyectado = 0.0
+if not df_ped.empty and "cantidad" in df_ped.columns and "precio_venta" in df_ped.columns:
+    df_ped["cant_num"] = pd.to_numeric(df_ped["cantidad"], errors="coerce").fillna(0)
+    df_ped["precio_num"] = pd.to_numeric(df_ped["precio_venta"], errors="coerce").fillna(0)
+    valor_stock_proyectado = float((df_ped["cant_num"] * df_ped["precio_num"]).sum())
+
+# Métricas Ejecutivas
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("💵 DISPONIBLE CAJA NEGOCIO", formato_gs(flujo_neto_negocio))
+m2.metric("💳 GASTOS PERSONALES TOTALES", formato_gs(gastos_personales_total))
+m3.metric("⏳ PENDIENTE DE COBRO (DEUDAS)", formato_gs(cuentas_pendientes))
+m4.metric("📦 VALOR DE MERCADERÍA", formato_gs(valor_stock_proyectado))
 
 st.markdown("---")
-st.subheader("📄 Exportación de Informes Ejecutivos")
-tab_pdf, tab_excel = st.tabs(["📄 Exportar PDF", "📊 Exportar Excel"])
 
-with tab_pdf:
-    df_rep = pd.read_sql_query("SELECT * FROM transacciones", conn)
-    if not df_rep.empty and st.button("⚡ GENERAR REPORTE PDF"):
-        buffer = io.BytesIO()
-        p = canvas.Canvas(buffer, pagesize=letter)
-        width, height = letter
-        p.drawString(50, height - 50, "PROYECTO X - INFORME FINANCIERO DE OPERACIONES")
-        y = height - 90
-        for idx, row in df_rep.iterrows():
-            p.drawString(50, y, f"{row['tipo']} | {row['categoria']} | ${row['monto']} | {row['fecha']}")
-            y -= 20
-            if y < 50:
-                p.showPage()
-                y = height - 50
-        p.save()
-        buffer.seek(0)
-        st.download_button("⬇️ Descargar Reporte PDF", data=buffer, file_name="reporte_financiero.pdf", mime="application/pdf")
+col_izq, col_der = st.columns(2)
+
+with col_izq:
+    st.subheader("📊 Rentabilidad de la Operación (Caja)")
+    margen_neto = (flujo_neto_negocio / ingresos_negocio * 100) if ingresos_negocio > 0 else 0
+    st.write(f"• **Ingresos Brutos:** `{formato_gs(ingresos_negocio)}`")
+    st.write(f"• **Costes / Egresos:** `{formato_gs(egresos_negocio)}`")
+    st.write(f"• **Utilidad Neta de Caja:** `{formato_gs(flujo_neto_negocio)}`")
+    st.write(f"• **Margen Neto:** `{margen_neto:.1f}%`")
+    
+    if flujo_neto_negocio > 0:
+        st.success("✨ Operación comercial superavitaria.")
+    elif flujo_neto_negocio < 0:
+        st.error("⚠️ La caja opera con saldo deficitario.")
     else:
-        st.warning("No hay transacciones registradas para compilar en PDF.")
+        st.info("Sin movimientos operativos registrados.")
 
-with tab_excel:
-    st.caption("Extracción integral de todas las entidades en libro Excel (.xlsx).")
-    if st.button("⚡ GENERAR LIBRO EXCEL MULTIHOJA"):
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            pd.read_sql_query("SELECT * FROM transacciones", conn).to_excel(writer, index=False, sheet_name="Caja Negocio")
-            pd.read_sql_query("SELECT * FROM pedidos_inventario", conn).to_excel(writer, index=False, sheet_name="Pedidos e Inventario")
-            pd.read_sql_query("SELECT * FROM gastos_personales", conn).to_excel(writer, index=False, sheet_name="Gastos Personales")
-            pd.read_sql_query("SELECT * FROM deudas", conn).to_excel(writer, index=False, sheet_name="Deudas y Fiados")
-        output.seek(0)
-        st.download_button(
-            label="⬇️ Descargar Libro Contable Completo",
-            data=output,
-            file_name="ProyectoX_Reporte_Completo.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
->>>>>>> c919b70 (Rediseño completo estilo Futurista Premium)
+with col_der:
+    st.subheader("🏛️ Patrimonio y Liquidez Integral")
+    liquidez_potencial = flujo_neto_negocio + cuentas_pendientes
+    patrimonio_total = liquidez_potencial + valor_stock_proyectado
+    
+    st.write(f"• **Liquidez Inmediata:** `{formato_gs(flujo_neto_negocio)}`")
+    st.write(f"• **Liquidez Esperada (Caja + Cobros):** `{formato_gs(liquidez_potencial)}`")
+    st.write(f"• **Activos en Inventario:** `{formato_gs(valor_stock_proyectado)}`")
+    st.write(f"• **Patrimonio Comercial Bruto:** `{formato_gs(patrimonio_total)}`")
+
+st.markdown("---")
+st.subheader("📑 Auditoría y Exportación de Registros")
+
+tab1, tab2, tab3, tab4 = st.tabs(["💼 Transacciones Negocio", "🛒 Gastos Personales", "🛍️ Pedidos e Inventario", "⚖️ Deudas"])
+
+with tab1:
+    if not df_tx.empty:
+        st.dataframe(df_tx, use_container_width=True)
+    else:
+        st.info("No hay datos en transacciones.")
+
+with tab2:
+    if not df_gp.empty:
+        st.dataframe(df_gp, use_container_width=True)
+    else:
+        st.info("No hay datos en gastos personales.")
+
+with tab3:
+    if not df_ped.empty:
+        st.dataframe(df_ped, use_container_width=True)
+    else:
+        st.info("No hay datos en inventario.")
+
+with tab4:
+    if not df_deu.empty:
+        st.dataframe(df_deu, use_container_width=True)
+    else:
+        st.info("No hay datos en deudas.")
