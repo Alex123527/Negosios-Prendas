@@ -117,13 +117,13 @@ with col_form:
     with c2:
         cant_ped = st.number_input("Cantidad de Unidades", min_value=1, value=1, step=1)
         costo_unit = st.number_input("Costo Unitario Prenda (Gs.)", min_value=0, value=35000, step=5000, format="%d")
-        st.caption(f"Costo unitario: **{formato_gs(costo_unit)}**")
+        st.caption(f"Costo unitario prenda: **{formato_gs(costo_unit)}**")
         
         margen_pct = st.slider("Margen Deseado (%)", min_value=5, max_value=250, value=60, step=5)
         
         precio_sugerido_calculado = int(round(costo_unit * (1 + margen_pct / 100)))
         precio_final = st.number_input("Precio de Venta Unitario (Gs.)", min_value=0, value=precio_sugerido_calculado, step=5000, format="%d")
-        st.caption(f"Precio unitario venta: **{formato_gs(precio_final)}**")
+        st.caption(f"Precio venta unitario: **{formato_gs(precio_final)}**")
         
         monto_total_prendas = cant_ped * precio_final
         st.text_input("Subtotal Prendas (Gs.)", value=formato_gs(monto_total_prendas), disabled=True)
@@ -141,7 +141,7 @@ with col_form:
     with cl3:
         quien_paga_envio = st.selectbox("¿Quién asume el envío?", ["Cliente (Paga al recibir / Sumado)", "Negocio (Envío Gratis / Promoción)", "Sin Costo de Envío"])
 
-    comprobante_ped = st.file_uploader("Comprobante de Pago / Guía de Envío (Opcional)", type=["png", "jpg", "jpeg", "pdf"])
+    comprobante_ped = st.file_uploader("Comprobante de Pago / Guía de Envío (Opcional)", type=["png", "jpg", "jpeg", "pdf"], key="comprobante_nuevo")
     
     btn_crear_ped = st.button("💾 ASENTAR PRENDA / PEDIDO", use_container_width=True)
     
@@ -237,7 +237,6 @@ with col_calc:
 
 st.markdown("---")
 
-# ENCABEZADO Y ZONA DE EXPORTACIÓN EXCEL (.XLSX) Y PDF
 col_tit_cat, col_btn_exp1, col_btn_exp2 = st.columns([2, 1, 1])
 
 with col_tit_cat:
@@ -258,7 +257,7 @@ if not df_pedidos.empty:
         df_mostrar["costo"] = cost_num.apply(formato_gs)
         df_mostrar["precio_venta"] = p_num.apply(formato_gs)
 
-    # 1. GENERAR EXCEL REAL (.XLSX)
+    # 1. Excel (.xlsx)
     buffer_excel = io.BytesIO()
     with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
         df_mostrar.to_excel(writer, index=False, sheet_name='Pedidos')
@@ -273,7 +272,7 @@ if not df_pedidos.empty:
             use_container_width=True
         )
 
-    # 2. GENERAR VISTA / REPORTE IMPRIMIBLE A PDF (HTML con diseño listo para Imprimir/Guardar PDF)
+    # 2. PDF Imprimible
     filas_html = ""
     for _, f in df_mostrar.iterrows():
         filas_html += f"""
@@ -309,7 +308,7 @@ if not df_pedidos.empty:
     </head>
     <body onload="window.print()">
         <div class="no-print" style="margin-bottom: 15px; background: #eef; padding: 10px; border-radius: 5px;">
-            ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Elige <strong>"Guardar como PDF"</strong> en la impresora para descargarlo.</em>
+            ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Elige <strong>"Guardar como PDF"</strong> para guardarlo.</em>
         </div>
         <h2>📦 REPORTE Y DESPACHO DE PEDIDOS</h2>
         <p>Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
@@ -335,22 +334,6 @@ if not df_pedidos.empty:
             mime="text/html",
             use_container_width=True
         )
-
-    # Botón 2: Planilla de Despacho / Formato Texto para Impresión / PDF
-    buffer_txt = io.StringIO()
-    buffer_txt.write(f"=== LISTA DE PEDIDOS Y DESPACHO - {datetime.now().strftime('%d/%m/%Y')} ===\n\n")
-    for _, fila in df_mostrar.iterrows():
-        buffer_txt.write(f"• ID #{fila.get('id')} | {fila.get('fecha')} | Cliente: {fila.get('cliente')} | Item: {fila.get('modelo_prenda')} ({fila.get('talle')}) x {fila.get('cantidad')} uds | Total: {fila.get('TOTAL PEDIDO (GS.)')} | Estado: {fila.get('estado')}\n")
-    txt_datos = buffer_txt.getvalue().encode('utf-8')
-
-    with col_btn_exp2:
-        st.download_button(
-            label="📄 Planilla / Despacho (TXT)",
-            data=txt_datos,
-            file_name=f"despacho_pedidos_{datetime.now().strftime('%Y%m%d')}.txt",
-            mime="text/plain",
-            use_container_width=True
-        )
     
     st.dataframe(df_mostrar, use_container_width=True)
 
@@ -360,34 +343,112 @@ if not df_pedidos.empty:
         agrupado_prod.columns = ["MODELO DE PRENDA", "CANTIDAD TOTAL PEDIDA (UDS)"]
         st.dataframe(agrupado_prod, use_container_width=True)
 
-    st.markdown("### ⚙️ MODIFICAR O ACTUALIZAR PEDIDO / PRENDA")
-    sel_ped_id = st.selectbox("Seleccione ID de registro:", df_pedidos["id"].tolist())
+    # SECCIÓN DE EDICIÓN COMPLETA
+    st.markdown("---")
+    st.subheader("⚙️ MODIFICAR O ACTUALIZAR PEDIDO COMPLETO")
+    st.caption("Selecciona cualquier pedido para editar cada uno de sus campos o adjuntar nuevo comprobante.")
+    
+    opciones_pedidos = {f"ID #{row['id']} - {row.get('cliente', '')} ({row.get('modelo_prenda', '')})": row['id'] for _, row in df_pedidos.iterrows()}
+    pedido_seleccionado_txt = st.selectbox("Seleccione el pedido a modificar:", list(opciones_pedidos.keys()))
+    sel_ped_id = opciones_pedidos[pedido_seleccionado_txt]
+    
     fila_ped = df_pedidos[df_pedidos["id"] == sel_ped_id].iloc[0]
 
-    with st.form("form_edit_pedido"):
-        e_modelo = st.text_input("Modelo", value=str(fila_ped.get("modelo_prenda", "")))
-        e_precio = st.number_input("Precio de Venta (Gs.)", value=int(fila_ped.get("precio_venta", 0)), step=5000, format="%d")
-        estados_opts = ["Entregado / Pagado", "Pendiente", "En Preparación", "Cancelado"]
-        idx_estado = estados_opts.index(fila_ped["estado"]) if fila_ped.get("estado") in estados_opts else 0
-        e_estado = st.selectbox("Estado", estados_opts, index=idx_estado)
+    try:
+        fecha_previa = datetime.strptime(str(fila_ped.get("fecha")), "%Y-%m-%d").date()
+    except Exception:
+        fecha_previa = datetime.now().date()
+
+    with st.form("form_edit_pedido_completo"):
+        e_c1, e_c2 = st.columns(2)
+        
+        with e_c1:
+            ed_fecha = st.date_input("Fecha de Registro", value=fecha_previa)
+            ed_cliente = st.text_input("Cliente / Destino", value=str(fila_ped.get("cliente", "")))
+            ed_modelo = st.text_input("Modelo de Prenda / Calzado", value=str(fila_ped.get("modelo_prenda", "")))
+            
+            idx_cat = categorias_lista.index(fila_ped.get("categoria")) if fila_ped.get("categoria") in categorias_lista else 0
+            ed_cat = st.selectbox("Categoría", categorias_lista, index=idx_cat)
+            
+            if ed_cat == "Calzados":
+                talles_ed = [str(i) for i in range(1, 51)]
+                idx_talle = talles_ed.index(str(fila_ped.get("talle"))) if str(fila_ped.get("talle")) in talles_ed else 39
+            else:
+                talles_ed = ["XS", "S", "M", "L", "XL", "XXL", "Único", "Surtido"]
+                idx_talle = talles_ed.index(str(fila_ped.get("talle"))) if str(fila_ped.get("talle")) in talles_ed else 0
+            ed_talle = st.selectbox("Talle / Calce", talles_ed, index=idx_talle)
+            
+            pagos_opts = ["Efectivo", "Transferencia Bancaria", "Billetera Zimple / Giros", "Tarjeta de Débito/Crédito", "A Crédito / Pendiente", "Otro"]
+            ed_pago = st.selectbox("Tipo de Pago", pagos_opts)
+
+        with e_c2:
+            ed_cant = st.number_input("Cantidad de Unidades", min_value=1, value=int(fila_ped.get("cantidad", 1)), step=1)
+            ed_costo = st.number_input("Costo Unitario Prenda (Gs.)", min_value=0, value=int(fila_ped.get("costo", 35000)), step=5000, format="%d")
+            st.caption(f"Costo unitario: **{formato_gs(ed_costo)}**")
+            
+            margen_prev = int(fila_ped.get("margen_ganancia", 60)) if fila_ped.get("margen_ganancia") else 60
+            ed_margen = st.slider("Margen (%)", min_value=5, max_value=250, value=min(250, max(5, margen_prev)), step=5)
+            
+            ed_precio = st.number_input("Precio de Venta Final (Gs.)", min_value=0, value=int(fila_ped.get("precio_venta", 0)), step=5000, format="%d")
+            st.caption(f"Precio venta final: **{formato_gs(ed_precio)}**")
+            
+            st.text_input("Subtotal Calculado (Gs.)", value=formato_gs(ed_cant * ed_precio), disabled=True)
+            
+            canales_opts = ["Instagram", "WhatsApp", "Tienda Física", "Feria", "Otro"]
+            ed_canal = st.selectbox("Canal de Venta", canales_opts)
+            
+            estados_opts = ["Entregado / Pagado", "Pendiente", "En Preparación", "Cancelado"]
+            idx_estado = estados_opts.index(fila_ped["estado"]) if fila_ped.get("estado") in estados_opts else 0
+            ed_estado = st.selectbox("Estado del Pedido", estados_opts, index=idx_estado)
+
+        st.markdown("#### 🚚 Actualizar Logística / Comprobante")
+        e_cl1, e_cl2, e_cl3 = st.columns(3)
+        with e_cl1:
+            ed_empresa = st.selectbox("Transportadora / Medio", ["Retiro en Local", "AEX", "NSA Encomiendas", "Rysa", "Delivery Local (Moto)", "Otra Encomienda"])
+        with e_cl2:
+            ed_costo_envio = st.number_input("Costo Envío / Flete (Gs.)", min_value=0, value=0, step=5000, format="%d")
+        with e_cl3:
+            ed_quien_paga = st.selectbox("¿Quién asume el envío?", ["Cliente (Paga al recibir / Sumado)", "Negocio (Envío Gratis / Promoción)", "Sin Costo de Envío"])
+
+        canal_anterior = str(fila_ped.get("canal", ""))
+        st.write(f"📁 *Información actual guardada:* `{canal_anterior}`")
+        ed_comprobante = st.file_uploader("Actualizar Comprobante de Pago / Guía (Opcional)", type=["png", "jpg", "jpeg", "pdf"], key="comprobante_edicion")
 
         c_bt1, c_bt2 = st.columns(2)
-        if c_bt1.form_submit_button("🔄 ACTUALIZAR (ENTER)"):
+        if c_bt1.form_submit_button("🔄 ACTUALIZAR TODO EL PEDIDO"):
+            nombre_doc = ed_comprobante.name if ed_comprobante is not None else ""
+            info_canal_act = f"{ed_canal} | Pago: {ed_pago} | Envio: {ed_empresa} ({formato_gs(ed_costo_envio)} - {ed_quien_paga})"
+            if nombre_doc:
+                info_canal_act += f" | Doc: {nombre_doc}"
+            elif "Doc:" in canal_anterior:
+                doc_previo = canal_anterior.split("Doc:")[-1].strip()
+                info_canal_act += f" | Doc: {doc_previo}"
+
+            datos_actualizados = {
+                "fecha": str(ed_fecha),
+                "cliente": ed_cliente.strip(),
+                "modelo_prenda": ed_modelo.strip(),
+                "categoria": ed_cat,
+                "talle": str(ed_talle),
+                "cantidad": int(ed_cant),
+                "costo": int(ed_costo),
+                "margen_ganancia": int(ed_margen),
+                "precio_venta": int(ed_precio),
+                "canal": info_canal_act,
+                "estado": ed_estado
+            }
+
             try:
-                supabase.table("pedidos_inventario").update({
-                    "modelo_prenda": e_modelo,
-                    "precio_venta": int(e_precio),
-                    "estado": e_estado
-                }).eq("id", sel_ped_id).execute()
-                st.success("Registro actualizado.")
+                supabase.table("pedidos_inventario").update(datos_actualizados).eq("id", sel_ped_id).execute()
+                st.success("¡Pedido actualizado con éxito con todos sus datos!")
                 st.rerun()
             except Exception as e:
-                st.error(f"Error al actualizar: {e}")
+                st.error(f"Error al actualizar en Supabase: {e}")
 
-        if c_bt2.form_submit_button("🗑️ ELIMINAR REGISTRO"):
+        if c_bt2.form_submit_button("🗑️ ELIMINAR PEDIDO"):
             try:
                 supabase.table("pedidos_inventario").delete().eq("id", sel_ped_id).execute()
-                st.success("Registro eliminado de Supabase.")
+                st.success("Pedido eliminado de la base de datos.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error al eliminar: {e}")
