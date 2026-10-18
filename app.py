@@ -177,3 +177,34 @@ with col_info3:
             <p style="color: #9FB2C8; font-size: 0.85rem; margin-top: 8px;">Base de datos unificada sin latencia externa.</p>
         </div>
     """, unsafe_allow_html=True)
+# =====================================================================
+# HERRAMIENTA DE DIAGNÓSTICO RÁPIDO DEL SISTEMA
+# =====================================================================
+with st.sidebar.expander("🛠️ DIAGNÓSTICO DEL SISTEMA", expanded=False):
+    st.caption("Verificación de conexiones y estado de base de datos.")
+    
+    if st.button("🔍 EJECUTAR TEST DE SALUD", use_container_width=True):
+        st.write("---")
+        # 1. Test de Secretos
+        if "supabase" in st.secrets and "url" in st.secrets["supabase"] and "key" in st.secrets["supabase"]:
+            st.success("✅ Secretos configurados correctamente.")
+        else:
+            st.error("❌ Faltan claves en st.secrets.")
+
+        # 2. Test de Conexión y Tablas
+        tablas_a_probar = ["transacciones", "pedidos_inventario", "gastos_personales"]
+        
+        for tabla in tablas_a_probar:
+            try:
+                res = supabase.table(tabla).select("id", count="exact").limit(1).execute()
+                cant = res.count if hasattr(res, "count") and res.count is not None else len(res.data or [])
+                st.write(f"• **{tabla}**: ✅ OK ({cant} registros detectados)")
+            except Exception as err:
+                st.error(f"• **{tabla}**: ❌ Error detectado:")
+                st.code(str(err), language="bash")
+                
+        # 3. Datos de Sesión y Entorno
+        st.write("---")
+        st.caption("Información del Entorno:")
+        st.write(f"- Estado de autenticación: `{st.session_state.get('autenticado', False)}`")
+        st.write(f"- Python runtime: Activo")
