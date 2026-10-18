@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+import io
 from supabase import create_client, Client
 
 st.set_page_config(page_title="Pedidos y Precios | PROYECTO X", page_icon="🏷️", layout="wide")
@@ -12,7 +13,7 @@ st.markdown("""
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     .stApp { background-color: #071426; color: #E6EDF5; }
     section[data-testid="stSidebar"] { background-color: #0b1a2f !important; }
-    .stButton>button {
+    .stButton>button, .stDownloadButton>button {
         background: linear-gradient(135deg, #4388FF 0%, #2f6de0 100%) !important;
         color: white !important;
         border: none !important;
@@ -116,13 +117,13 @@ with col_form:
     with c2:
         cant_ped = st.number_input("Cantidad de Unidades", min_value=1, value=1, step=1)
         costo_unit = st.number_input("Costo Unitario Prenda (Gs.)", min_value=0, value=35000, step=5000, format="%d")
-        st.caption(f"Costo unitario prenda: **{formato_gs(costo_unit)}**")
+        st.caption(f"Costo unitario: **{formato_gs(costo_unit)}**")
         
         margen_pct = st.slider("Margen Deseado (%)", min_value=5, max_value=250, value=60, step=5)
         
         precio_sugerido_calculado = int(round(costo_unit * (1 + margen_pct / 100)))
         precio_final = st.number_input("Precio de Venta Unitario (Gs.)", min_value=0, value=precio_sugerido_calculado, step=5000, format="%d")
-        st.caption(f"Precio venta unitario: **{formato_gs(precio_final)}**")
+        st.caption(f"Precio unitario venta: **{formato_gs(precio_final)}**")
         
         monto_total_prendas = cant_ped * precio_final
         st.text_input("Subtotal Prendas (Gs.)", value=formato_gs(monto_total_prendas), disabled=True)
@@ -148,7 +149,6 @@ with col_form:
         if modelo_ped.strip():
             nombre_doc = comprobante_ped.name if comprobante_ped is not None else ""
             
-            # Detalle logístico en la información del canal para trazabilidad total
             info_canal = f"{canal_ped} | Pago: {tipo_pago_ped} | Envio: {empresa_envio} ({formato_gs(costo_envio)} - {quien_paga_envio})"
             if nombre_doc:
                 info_canal += f" | Doc: {nombre_doc}"
@@ -170,7 +170,6 @@ with col_form:
             try:
                 supabase.table("pedidos_inventario").insert(nuevo_pedido).execute()
                 
-                # ASIENTO AUTOMÁTICO EN CAJA: Si el negocio cubre el envío y hay costo > 0
                 if quien_paga_envio == "Negocio (Envío Gratis / Promoción)" and costo_envio > 0:
                     egreso_envio = {
                         "fecha": str(fecha_ped),
@@ -180,7 +179,7 @@ with col_form:
                         "descripcion": f"Flete {empresa_envio} - Pedido: {modelo_ped.strip()} ({cliente_ped.strip()})"
                     }
                     supabase.table("transacciones").insert(egreso_envio).execute()
-                    st.info(f"🚚 Se registró automáticamente el egreso de {formato_gs(costo_envio)} por flete en Caja de Negocio.")
+                    st.info(f"🚚 Se registró automáticamente el egreso de {formato_gs(costo_envio)} en Caja de Negocio.")
 
                 st.success("¡Pedido y logística asentados con éxito!")
                 st.rerun()
@@ -192,13 +191,11 @@ with col_form:
 with col_calc:
     st.subheader("💡 CALCULADORA DE RENTABILIDAD & DEMANDA")
     
-    # Impacto del envío en la ganancia real
     gasto_envio_negocio = costo_envio if quien_paga_envio == "Negocio (Envío Gratis / Promoción)" else 0
     ganancia_neta_total_pedido = (monto_total_prendas - (costo_unit * cant_ped)) - gasto_envio_negocio
     
-    st.info(f"Ganancia bruta estimada: **{formato_gs(ganancia_neta_total_pedido)}** en este pedido (descontando mercadería y flete asumido).")
+    st.info(f"Ganancia estimada: **{formato_gs(ganancia_neta_total_pedido)}** en este pedido (descontando mercadería y flete).")
 
-    # Demanda y liquidez
     hoy = datetime.now().date()
     hace_7_dias = hoy - timedelta(days=7)
     primer_dia_mes = hoy.replace(day=1)
@@ -240,7 +237,11 @@ with col_calc:
 
 st.markdown("---")
 
-st.subheader("📋 CATÁLOGO Y REGISTRO MAESTRO DE PEDIDOS")
+# ENCABEZADO Y ZONA DE EXPORTACIÓN EXCEL / CSV
+col_tit_cat, col_btn_exp1, col_btn_exp2 = st.columns([2, 1, 1])
+
+with col_tit_cat:
+    st.subheader("📋 CATÁLOGO Y REGISTRO MAESTRO DE PEDIDOS")
 
 if not df_pedidos.empty:
     cols_base = ["id", "fecha", "cliente", "modelo_prenda", "categoria", "talle", "cantidad", "costo", "precio_venta", "canal", "estado"]
@@ -256,6 +257,33 @@ if not df_pedidos.empty:
         df_mostrar["TOTAL PEDIDO (GS.)"] = (c_num * p_num).apply(formato_gs)
         df_mostrar["costo"] = cost_num.apply(formato_gs)
         df_mostrar["precio_venta"] = p_num.apply(formato_gs)
+
+    # Botón 1: Descargar Excel (.xlsx / .csv compatible)
+    csv_datos = df_mostrar.to_csv(index=False).encode('utf-8-sig')
+    with col_btn_exp1:
+        st.download_button(
+            label="📗 Exportar Excel (CSV)",
+            data=csv_datos,
+            file_name=f"pedidos_inventario_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+    # Botón 2: Planilla de Despacho / Formato Texto para Impresión / PDF
+    buffer_txt = io.StringIO()
+    buffer_txt.write(f"=== LISTA DE PEDIDOS Y DESPACHO - {datetime.now().strftime('%d/%m/%Y')} ===\n\n")
+    for _, fila in df_mostrar.iterrows():
+        buffer_txt.write(f"• ID #{fila.get('id')} | {fila.get('fecha')} | Cliente: {fila.get('cliente')} | Item: {fila.get('modelo_prenda')} ({fila.get('talle')}) x {fila.get('cantidad')} uds | Total: {fila.get('TOTAL PEDIDO (GS.)')} | Estado: {fila.get('estado')}\n")
+    txt_datos = buffer_txt.getvalue().encode('utf-8')
+
+    with col_btn_exp2:
+        st.download_button(
+            label="📄 Planilla / Despacho (TXT)",
+            data=txt_datos,
+            file_name=f"despacho_pedidos_{datetime.now().strftime('%Y%m%d')}.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
     
     st.dataframe(df_mostrar, use_container_width=True)
 
