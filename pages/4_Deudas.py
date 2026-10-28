@@ -4,38 +4,120 @@ from datetime import datetime, timedelta
 import io
 from supabase import create_client, Client
 
-st.set_page_config(page_title="Deudas | PROYECTO X", page_icon="💳", layout="wide")
+st.set_page_config(
+    page_title="Deudas y Cobranzas | PROYECTO X",
+    page_icon="💳",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# CSS Futurista Coherente
+# =========================================================================
+# SISTEMA DE ESTILOS VISUALES (Inspirado en Canvas UI de Alto Nivel)
+# =========================================================================
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-    .stApp { background-color: #071426; color: #E6EDF5; }
-    section[data-testid="stSidebar"] { background-color: #0b1a2f !important; }
-    .stButton>button, .stDownloadButton>button {
-        background: linear-gradient(135deg, #4388FF 0%, #2f6de0 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
     }
-    [data-testid="stMetricValue"] { color: #21D4C4 !important; font-weight: 700 !important; }
-    [data-testid="stMetricLabel"] { color: #9FB2C8 !important; }
+    
+    .stApp {
+        background-color: #0f172a !important;
+        color: #f8fafc !important;
+    }
+    
+    section[data-testid="stSidebar"] {
+        background-color: #0b1329 !important;
+        border-right: 1px solid #1e293b !important;
+    }
+    
+    .stButton>button, .stDownloadButton>button {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(59, 130, 246, 0.4) !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        font-size: 0.85rem !important;
+        padding: 0.5rem 1rem !important;
+        box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.25) !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    .stButton>button:hover, .stDownloadButton>button:hover {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+        box-shadow: 0 6px 20px 0 rgba(37, 99, 235, 0.4) !important;
+        transform: translateY(-1px) !important;
+    }
+    
     .stTextInput input, .stNumberInput input, .stSelectbox select, .stDateInput input {
-        background-color: #0d1b30 !important;
-        color: #E6EDF5 !important;
-        border: 1px solid #1E365D !important;
+        background-color: #090d16 !important;
+        color: #f1f5f9 !important;
+        border: 1px solid #1e293b !important;
+        border-radius: 8px !important;
+        font-size: 0.85rem !important;
+    }
+    .stTextInput input:focus, .stNumberInput input:focus, .stSelectbox select:focus {
+        border-color: #2563eb !important;
+        box-shadow: 0 0 0 1px #2563eb !important;
+    }
+    
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: #0b1329 !important;
+        border: 1px solid #1e293b !important;
+        border-radius: 12px !important;
+        padding: 4px !important;
+        gap: 6px !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px !important;
+        color: #94a3b8 !important;
+        font-weight: 500 !important;
+        font-size: 0.82rem !important;
+        padding: 8px 16px !important;
+        border: none !important;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #1e293b !important;
+        color: #38bdf8 !important;
+        font-weight: 700 !important;
+        border: 1px solid rgba(56, 189, 248, 0.25) !important;
+    }
+    
+    [data-testid="stDataFrame"] {
+        border: 1px solid #1e293b !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
+    }
+    
+    .kpi-card {
+        background-color: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 14px;
+        padding: 18px 20px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+    }
+    .kpi-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #94a3b8;
+    }
+    .kpi-val {
+        font-size: 1.55rem;
+        font-weight: 800;
+        margin-top: 4px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Validación de seguridad
+# =========================================================================
+# ESCUDO DE SEGURIDAD Y CONEXIÓN
+# =========================================================================
 if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
     st.warning("⚠️ Acceso restringido. Por favor autentíquese en app.py.")
     st.stop()
 
-# Conexión Supabase
 @st.cache_resource
 def init_supabase() -> Client:
     url = st.secrets["supabase"]["url"]
@@ -75,8 +157,22 @@ def cargar_pedidos():
 df_deudas = cargar_deudas()
 df_pedidos = cargar_pedidos()
 
-st.title("💳 GESTIÓN DE DEUDAS Y CUENTAS POR COBRAR")
-st.caption("CONTROL DE SALDOS PENDIENTES, VENCIMIENTOS Y LIQUIDACIONES")
+# =========================================================================
+# BANNER PRINCIPAL Y KPIs SUPERIORES
+# =========================================================================
+st.markdown("""
+    <div style="background: linear-gradient(135deg, #090d16 0%, #1e293b 100%); padding: 22px 26px; border-radius: 16px; border: 1px solid #334155; margin-bottom: 20px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);">
+        <span style="background: rgba(37, 99, 245, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.35); padding: 3px 10px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">
+            Módulo de Crédito & Cobranzas
+        </span>
+        <h1 style="color: #ffffff; font-size: 1.7rem; font-weight: 800; margin: 8px 0 4px 0; letter-spacing: -0.02em;">
+            💳 Gestión de Deudas y Cuentas por Cobrar
+        </h1>
+        <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">
+            Supervisión de saldos a favor, compromisos pendientes con proveedores, alertas de mora y liquidación automática en caja.
+        </p>
+    </div>
+""", unsafe_allow_html=True)
 
 # Métricas Principales
 total_por_cobrar = 0
@@ -98,19 +194,56 @@ if not df_deudas.empty:
     cuentas_pendientes_cobro = len(por_cobrar_df)
     cuentas_pendientes_pago = len(por_pagar_df)
 
-m1, m2, m3 = st.columns(3)
-m1.metric("💰 CAPITAL EN LA CALLE (POR COBRAR)", formato_gs(total_por_cobrar), f"{cuentas_pendientes_cobro} cuentas activas")
-m2.metric("🧾 COMPROMISOS (POR PAGAR)", formato_gs(total_por_pagar), f"{cuentas_pendientes_pago} compromisos", delta_color="inverse")
-m3.metric("⚖️ SALDO NETO", formato_gs(total_por_cobrar - total_por_pagar))
+saldo_neto_credito = total_por_cobrar - total_por_pagar
 
-st.markdown("---")
+col_k1, col_k2, col_k3 = st.columns(3)
 
-col_form, col_resumen = st.columns([1.8, 1.2])
+with col_k1:
+    st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">💰 Capital en la Calle (Por Cobrar)</div>
+            <div class="kpi-val" style="color: #10b981;">{formato_gs(total_por_cobrar)}</div>
+            <span style="font-size: 0.75rem; color: #94a3b8;">{cuentas_pendientes_cobro} cuentas pendientes de cobro</span>
+        </div>
+    """, unsafe_allow_html=True)
 
-with col_form:
-    st.subheader("📝 ASENTAR NUEVA CUENTA / DEUDA")
+with col_k2:
+    st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">🧾 Compromisos (Por Pagar)</div>
+            <div class="kpi-val" style="color: #ef4444;">{formato_gs(total_por_pagar)}</div>
+            <span style="font-size: 0.75rem; color: #94a3b8;">{cuentas_pendientes_pago} compromisos con terceros</span>
+        </div>
+    """, unsafe_allow_html=True)
 
-    # VINCULACIÓN DIRECTA CON PEDIDOS
+with col_k3:
+    color_neto = "#38bdf8" if saldo_neto_credito >= 0 else "#f87171"
+    st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">⚖️ Saldo Neto a Favor</div>
+            <div class="kpi-val" style="color: {color_neto};">{formato_gs(saldo_neto_credito)}</div>
+            <span style="font-size: 0.75rem; color: #94a3b8;">Diferencial entre cobros y pagos</span>
+        </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+
+# =========================================================================
+# NAVEGACIÓN MODERNA POR PESTAÑAS (TABS)
+# =========================================================================
+tab_registro, tab_maestro, tab_vencimientos, tab_liquidacion = st.tabs([
+    "📝 Asentar Nueva Cuenta",
+    "📋 Registro Maestro & Reportes (Excel / PDF)",
+    "🔔 Semáforo de Vencimientos",
+    "⚙️ Modificar / Liquidar Cuenta"
+])
+
+# -------------------------------------------------------------------------
+# TAB 1: ASENTAR NUEVA CUENTA / DEUDA
+# -------------------------------------------------------------------------
+with tab_registro:
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    
     dict_pedidos = {"-- Cargar manualmente (sin vincular pedido) --": None}
     if not df_pedidos.empty:
         for _, p in df_pedidos.iterrows():
@@ -126,7 +259,6 @@ with col_form:
     sel_ped_vinculo = st.selectbox("🔗 Vincular con Pedido Registrado (Autocompletar datos):", list(dict_pedidos.keys()))
     pedido_elegido = dict_pedidos[sel_ped_vinculo]
 
-    # Valores por defecto o precargados desde el pedido seleccionado
     def_cliente = ""
     def_concepto = ""
     def_monto = 0
@@ -143,7 +275,6 @@ with col_form:
         except Exception:
             def_fecha = datetime.now().date()
 
-    # Formulario habilitado para registrar presionando ENTER
     with st.form("form_registro_deuda", clear_on_submit=False):
         c1, c2 = st.columns(2)
         with c1:
@@ -162,7 +293,8 @@ with col_form:
 
         asentar_en_caja = st.checkbox("Asentar automáticamente en Caja de Negocio si ya se abonó / canceló", value=False)
         
-        btn_guardar_deuda = st.form_submit_button("💾 ASENTAR REGISTRO", use_container_width=True)
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        btn_guardar_deuda = st.form_submit_button("💾 ASENTAR REGISTRO DE CUENTA", use_container_width=True)
 
         if btn_guardar_deuda:
             if cliente_contacto.strip() and concepto_det.strip() and monto_cuenta > 0:
@@ -200,9 +332,114 @@ with col_form:
             else:
                 st.warning("Completa el nombre, concepto y verifica que el monto sea mayor a 0 Gs.")
 
-with col_resumen:
-    st.subheader("💡 RESUMEN Y VENCIMIENTOS")
-    
+# -------------------------------------------------------------------------
+# TAB 2: REGISTRO MAESTRO Y EXPORTACIONES EXCEL / PDF
+# -------------------------------------------------------------------------
+with tab_maestro:
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    if not df_deudas.empty:
+        col_t_tab, col_btn_exp1, col_btn_exp2 = st.columns([2, 1, 1])
+        with col_t_tab:
+            st.markdown("### 📋 Registro Maestro de Cuentas y Deudas")
+            st.caption("Planilla completa con estados, vencimientos y herramientas de exportación oficial.")
+
+        cols_base = ["id", "fecha", "tipo", "cliente", "concepto", "monto_deuda", "forma_pago", "fecha_vencimiento", "estado"]
+        cols_existentes = [c for c in cols_base if c in df_deudas.columns]
+        df_mostrar = df_deudas[cols_existentes].copy()
+        
+        if "monto_deuda" in df_mostrar.columns:
+            m_num = pd.to_numeric(df_mostrar["monto_deuda"], errors="coerce").fillna(0)
+            df_mostrar["TOTAL (GS.)"] = m_num.apply(formato_gs)
+
+        buffer_excel = io.BytesIO()
+        with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+            df_mostrar.to_excel(writer, index=False, sheet_name='Deudas')
+        excel_data = buffer_excel.getvalue()
+
+        with col_btn_exp1:
+            st.download_button(
+                label="📗 Descargar Excel (.xlsx)",
+                data=excel_data,
+                file_name=f"Cuentas_Deudas_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+
+        filas_html_deudas = ""
+        for _, f in df_mostrar.iterrows():
+            color_st = "#ef4444" if "Pendiente" in str(f.get("estado", "")) else "#10b981"
+            filas_html_deudas += f"""
+            <tr>
+                <td>{f.get('id', '')}</td>
+                <td>{f.get('fecha', '')}</td>
+                <td><strong>{f.get('cliente', '')}</strong></td>
+                <td>{f.get('concepto', '')}</td>
+                <td>{f.get('tipo', '')}</td>
+                <td>{f.get('forma_pago', '')}</td>
+                <td style='text-align: right; font-weight: bold;'>{f.get('TOTAL (GS.)', '')}</td>
+                <td>{f.get('fecha_vencimiento', '')}</td>
+                <td><span style='color: {color_st}; font-weight: bold;'>{f.get('estado', '')}</span></td>
+            </tr>
+            """
+            
+        html_reporte_deudas = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Reporte de Cuentas y Deudas - PROYECTO X</title>
+            <style>
+                body {{ font-family: 'Inter', Arial, sans-serif; margin: 30px; color: #0f172a; }}
+                h2 {{ color: #0f172a; margin-bottom: 4px; font-size: 20px; }}
+                p {{ color: #64748b; font-size: 12px; margin-top: 0; }}
+                table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }}
+                th, td {{ border: 1px solid #cbd5e1; padding: 9px 12px; text-align: left; }}
+                th {{ background-color: #0f172a; color: #ffffff; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }}
+                tr:nth-child(even) {{ background-color: #f8fafc; }}
+                @media print {{
+                    .no-print {{ display: none !important; }}
+                    body {{ margin: 0; }}
+                }}
+            </style>
+        </head>
+        <body onload="window.print()">
+            <div class="no-print" style="margin-bottom: 20px; background: #e0f2fe; color: #0369a1; padding: 12px; border-radius: 8px; font-size: 12px;">
+                ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Selecciona <strong>"Guardar como PDF"</strong> para archivarlo.</em>
+            </div>
+            <h2>💳 REPORTE GENERAL DE CUENTAS Y DEUDAS</h2>
+            <p>Generado el: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Saldo Neto a Favor: {formato_gs(saldo_neto_credito)}</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th><th>Fecha</th><th>Cliente/Titular</th><th>Concepto</th><th>Tipo</th><th>Forma Pago</th><th>Monto</th><th>Vencimiento</th><th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {filas_html_deudas}
+                </tbody>
+            </table>
+        </body>
+        </html>
+        """
+
+        with col_btn_exp2:
+            st.download_button(
+                label="📕 Descargar PDF / Imprimir",
+                data=html_reporte_deudas.encode('utf-8'),
+                file_name=f"Reporte_Deudas_{datetime.now().strftime('%Y%m%d')}.html",
+                mime="text/html",
+                use_container_width=True
+            )
+
+        st.dataframe(df_mostrar, use_container_width=True)
+    else:
+        st.info("Sin registros de deudas o cuentas por cobrar por el momento.")
+
+# -------------------------------------------------------------------------
+# TAB 3: SEMÁFORO DE VENCIMIENTOS Y MORA
+# -------------------------------------------------------------------------
+with tab_vencimientos:
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     if not df_deudas.empty and "fecha_vencimiento" in df_deudas.columns:
         hoy = datetime.now().date()
         df_p = df_deudas[df_deudas.get("estado", "").str.contains("Pendiente|Parcial", case=False, na=False)].copy()
@@ -214,172 +451,103 @@ with col_resumen:
             vence_hoy = df_p[df_p["venc_dt"] == hoy]
             al_dia = df_p[df_p["venc_dt"] > hoy]
             
-            if not vencidas.empty:
-                st.error(f"⚠️ **{len(vencidas)} cuenta(s) vencida(s) / en mora:**")
-                for _, r in vencidas.iterrows():
-                    st.write(f"- {r.get('cliente')}: **{formato_gs(r.get('monto_deuda', 0))}** | Venció: {r.get('fecha_vencimiento')}")
+            c_v1, c_v2, c_v3 = st.columns(3)
             
-            if not vence_hoy.empty:
-                st.warning(f"🔔 **{len(vence_hoy)} cuenta(s) vencen hoy:**")
-                for _, r in vence_hoy.iterrows():
-                    st.write(f"- {r.get('cliente')}: **{formato_gs(r.get('monto_deuda', 0))}**")
-                    
-            if not al_dia.empty:
-                st.success(f"✅ **{len(al_dia)} cuenta(s) al día y vigentes.**")
+            with c_v1:
+                st.markdown("""<div style="background-color: #1e293b; border: 1px solid #7f1d1d; border-radius: 12px; padding: 16px;"><span style="color: #ef4444; font-weight: 700; font-size: 0.8rem; text-transform: uppercase;">⚠️ Cuentas Vencidas</span></div>""", unsafe_allow_html=True)
+                if not vencidas.empty:
+                    for _, r in vencidas.iterrows():
+                        st.markdown(f"- **{r.get('cliente')}**: `{formato_gs(r.get('monto_deuda', 0))}` (Venció el {r.get('fecha_vencimiento')})")
+                else:
+                    st.caption("No hay cuentas vencidas en mora.")
+
+            with c_v2:
+                st.markdown("""<div style="background-color: #1e293b; border: 1px solid #78350f; border-radius: 12px; padding: 16px;"><span style="color: #f59e0b; font-weight: 700; font-size: 0.8rem; text-transform: uppercase;">🔔 Vencen Hoy</span></div>""", unsafe_allow_html=True)
+                if not vence_hoy.empty:
+                    for _, r in vence_hoy.iterrows():
+                        st.markdown(f"- **{r.get('cliente')}**: `{formato_gs(r.get('monto_deuda', 0))}` (Gestión urgente)")
+                else:
+                    st.caption("No hay vencimientos fijados para hoy.")
+
+            with c_v3:
+                st.markdown("""<div style="background-color: #1e293b; border: 1px solid #064e3b; border-radius: 12px; padding: 16px;"><span style="color: #10b981; font-weight: 700; font-size: 0.8rem; text-transform: uppercase;">✅ Al Día / Vigentes</span></div>""", unsafe_allow_html=True)
+                if not al_dia.empty:
+                    for _, r in al_dia.iterrows():
+                        st.markdown(f"- **{r.get('cliente')}**: `{formato_gs(r.get('monto_deuda', 0))}` (Vence: {r.get('fecha_vencimiento')})")
+                else:
+                    st.caption("No hay otras cuentas registradas.")
         else:
-            st.success("¡Al día! No hay cuentas pendientes.")
+            st.success("¡Cartera de crédito al día! No hay cuentas pendientes activas.")
     else:
-        st.info("Sin cuentas pendientes activas.")
+        st.info("Sin cuentas registradas para auditar vencimientos.")
 
-st.markdown("---")
-
-# TABLA Y EXPORTACIÓN EN EXCEL Y PDF
-col_t_tab, col_btn_exp1, col_btn_exp2 = st.columns([2, 1, 1])
-with col_t_tab:
-    st.subheader("📋 REGISTRO MAESTRO DE CUENTAS")
-
-if not df_deudas.empty:
-    cols_base = ["id", "fecha", "tipo", "cliente", "concepto", "monto_deuda", "forma_pago", "fecha_vencimiento", "estado"]
-    cols_existentes = [c for c in cols_base if c in df_deudas.columns]
-    df_mostrar = df_deudas[cols_existentes].copy()
-    
-    if "monto_deuda" in df_mostrar.columns:
-        m_num = pd.to_numeric(df_mostrar["monto_deuda"], errors="coerce").fillna(0)
-        df_mostrar["TOTAL (GS.)"] = m_num.apply(formato_gs)
-
-    # 1. Exportación en Excel (.xlsx)
-    buffer_excel = io.BytesIO()
-    with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-        df_mostrar.to_excel(writer, index=False, sheet_name='Deudas')
-    excel_data = buffer_excel.getvalue()
-
-    with col_btn_exp1:
-        st.download_button(
-            label="📗 Descargar Excel (.xlsx)",
-            data=excel_data,
-            file_name=f"Cuentas_Deudas_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
-
-    # 2. Exportación a Formato PDF Imprimible
-    filas_html_deudas = ""
-    for _, f in df_mostrar.iterrows():
-        filas_html_deudas += f"""
-        <tr>
-            <td>{f.get('id', '')}</td>
-            <td>{f.get('fecha', '')}</td>
-            <td><strong>{f.get('cliente', '')}</strong></td>
-            <td>{f.get('concepto', '')}</td>
-            <td>{f.get('tipo', '')}</td>
-            <td>{f.get('forma_pago', '')}</td>
-            <td style='text-align: right;'><strong>{f.get('TOTAL (GS.)', '')}</strong></td>
-            <td>{f.get('fecha_vencimiento', '')}</td>
-            <td>{f.get('estado', '')}</td>
-        </tr>
-        """
+# -------------------------------------------------------------------------
+# TAB 4: MODIFICAR / LIQUIDAR CUENTA
+# -------------------------------------------------------------------------
+with tab_liquidacion:
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    if not df_deudas.empty:
+        st.markdown("### ⚙️ Actualizar o Liquidar Cuenta")
+        st.caption("Modifica montos, cambia estados o liquida la cuenta trasladando los fondos directamente a la Caja del Negocio.")
         
-    html_reporte_deudas = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <title>Reporte de Cuentas y Deudas - PROYECTO X</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 20px; color: #222; }}
-            h2 {{ color: #071426; margin-bottom: 5px; }}
-            p {{ color: #666; font-size: 13px; margin-top: 0; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }}
-            th, td {{ border: 1px solid #ddd; padding: 7px; text-align: left; }}
-            th {{ background-color: #0d1b30; color: white; }}
-            tr:nth-child(even) {{ background-color: #f9f9f9; }}
-            @media print {{
-                .no-print {{ display: none; }}
-            }}
-        </style>
-    </head>
-    <body onload="window.print()">
-        <div class="no-print" style="margin-bottom: 15px; background: #eef; padding: 10px; border-radius: 5px;">
-            ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Selecciona <strong>"Guardar como PDF"</strong>.</em>
-        </div>
-        <h2>💳 REPORTE GENERAL DE CUENTAS Y DEUDAS</h2>
-        <p>Generado el: {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th><th>Fecha</th><th>Cliente/Titular</th><th>Concepto</th><th>Tipo</th><th>Forma Pago</th><th>Monto</th><th>Vencimiento</th><th>Estado</th>
-                </tr>
-            </thead>
-            <tbody>
-                {filas_html_deudas}
-            </tbody>
-        </table>
-    </body>
-    </html>
-    """
+        opciones_deudas = {
+            f"ID #{r['id']} - {r.get('cliente', '')} ({r.get('concepto', '')}) - {formato_gs(r.get('monto_deuda', 0))}": r['id']
+            for _, r in df_deudas.iterrows()
+        }
+        sel_deuda_txt = st.selectbox("Seleccione registro:", list(opciones_deudas.keys()))
+        sel_deuda_id = opciones_deudas[sel_deuda_txt]
+        
+        fila_d = df_deudas[df_deudas["id"] == sel_deuda_id].iloc[0]
 
-    with col_btn_exp2:
-        st.download_button(
-            label="📕 Descargar PDF / Imprimir",
-            data=html_reporte_deudas.encode('utf-8'),
-            file_name=f"Reporte_Deudas_{datetime.now().strftime('%Y%m%d')}.html",
-            mime="text/html",
-            use_container_width=True
-        )
+        with st.form("form_editar_deuda"):
+            ed1, ed2 = st.columns(2)
+            with ed1:
+                ed_cliente = st.text_input("Cliente / Contacto", value=str(fila_d.get("cliente", "")))
+                ed_monto = st.number_input("Saldo / Monto (Gs.)", value=int(fila_d.get("monto_deuda", 0)), step=10000, format="%d")
+                st.caption(f"Monto: **{formato_gs(ed_monto)}**")
+            with ed2:
+                estados_d = ["Pendiente", "Abono Parcial", "Cancelado / Pagado"]
+                idx_est = estados_d.index(fila_d["estado"]) if fila_d.get("estado") in estados_d else 0
+                ed_estado_d = st.selectbox("Estado", estados_d, index=idx_est)
+                liquidar_caja = st.checkbox("Asentar saldo en Caja de Negocio al cancelar", value=False)
 
-    st.dataframe(df_mostrar, use_container_width=True)
+            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+            b_act, b_elim = st.columns(2)
+            with b_act:
+                btn_act = st.form_submit_button("🔄 GUARDAR CAMBIOS", use_container_width=True)
+            with b_elim:
+                btn_elim = st.form_submit_button("🗑️ ELIMINAR CUENTA", use_container_width=True)
 
-    # GESTIÓN Y ACTUALIZACIÓN RÁPIDA
-    st.markdown("### ⚙️ ACTUALIZAR O LIQUIDAR CUENTA")
-    opciones_deudas = {f"ID #{r['id']} - {r.get('cliente', '')} ({r.get('concepto', '')}) - {formato_gs(r.get('monto_deuda', 0))}": r['id'] for _, r in df_deudas.iterrows()}
-    sel_deuda_txt = st.selectbox("Seleccione registro:", list(opciones_deudas.keys()))
-    sel_deuda_id = opciones_deudas[sel_deuda_txt]
-    
-    fila_d = df_deudas[df_deudas["id"] == sel_deuda_id].iloc[0]
+            if btn_act:
+                try:
+                    supabase.table("deudas").update({
+                        "cliente": ed_cliente.strip(),
+                        "monto_deuda": int(ed_monto),
+                        "estado": ed_estado_d
+                    }).eq("id", sel_deuda_id).execute()
 
-    with st.form("form_editar_deuda"):
-        ed1, ed2 = st.columns(2)
-        with ed1:
-            ed_cliente = st.text_input("Cliente / Contacto", value=str(fila_d.get("cliente", "")))
-            ed_monto = st.number_input("Saldo / Monto (Gs.)", value=int(fila_d.get("monto_deuda", 0)), step=10000, format="%d")
-            st.caption(f"Monto: **{formato_gs(ed_monto)}**")
-        with ed2:
-            estados_d = ["Pendiente", "Abono Parcial", "Cancelado / Pagado"]
-            idx_est = estados_d.index(fila_d["estado"]) if fila_d.get("estado") in estados_d else 0
-            ed_estado_d = st.selectbox("Estado", estados_d, index=idx_est)
-            liquidar_caja = st.checkbox("Asentar saldo en Caja de Negocio al cancelar", value=False)
+                    if liquidar_caja and ed_estado_d == "Cancelado / Pagado":
+                        tipo_trans = "Ingreso" if "Cobrar" in str(fila_d.get("tipo", "")) else "Egreso"
+                        supabase.table("transacciones").insert({
+                            "fecha": str(datetime.now().date()),
+                            "tipo": tipo_trans,
+                            "categoria": "Liquidación Deuda",
+                            "monto": int(ed_monto),
+                            "descripcion": f"Liquidación: {ed_cliente.strip()} - {fila_d.get('concepto', '')}"
+                        }).execute()
+                        st.info("Liquidación registrada en Caja.")
 
-        b_act, b_elim = st.columns(2)
-        if b_act.form_submit_button("🔄 GUARDAR CAMBIOS"):
-            try:
-                supabase.table("deudas").update({
-                    "cliente": ed_cliente.strip(),
-                    "monto_deuda": int(ed_monto),
-                    "estado": ed_estado_d
-                }).eq("id", sel_deuda_id).execute()
+                    st.success("Cuenta actualizada exitosamente.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al actualizar: {e}")
 
-                if liquidar_caja and ed_estado_d == "Cancelado / Pagado":
-                    tipo_trans = "Ingreso" if "Cobrar" in str(fila_d.get("tipo", "")) else "Egreso"
-                    supabase.table("transacciones").insert({
-                        "fecha": str(datetime.now().date()),
-                        "tipo": tipo_trans,
-                        "categoria": "Liquidación Deuda",
-                        "monto": int(ed_monto),
-                        "descripcion": f"Liquidación: {ed_cliente.strip()} - {fila_d.get('concepto', '')}"
-                    }).execute()
-                    st.info("Liquidación registrada en Caja.")
-
-                st.success("Cuenta actualizada exitosamente.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error al actualizar: {e}")
-
-        if b_elim.form_submit_button("🗑️ ELIMINAR CUENTA"):
-            try:
-                supabase.table("deudas").delete().eq("id", sel_deuda_id).execute()
-                st.success("Cuenta eliminada de la base de datos.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error al eliminar: {e}")
-else:
-    st.info("Sin registros de deudas o cuentas por cobrar por el momento.")
+            if btn_elim:
+                try:
+                    supabase.table("deudas").delete().eq("id", sel_deuda_id).execute()
+                    st.success("Cuenta eliminada de la base de datos.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al eliminar: {e}")
+    else:
+        st.info("Sin cuentas registradas para modificar.")
