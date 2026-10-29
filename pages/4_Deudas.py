@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 # =========================================================================
-# SISTEMA DE ESTILOS VISUALES (Inspirado en Canvas UI de Alto Nivel)
+# SISTEMA DE ESTILOS VISUALES PREMIUM
 # =========================================================================
 st.markdown("""
     <style>
@@ -25,6 +25,14 @@ st.markdown("""
     .stApp {
         background-color: #0f172a !important;
         color: #f8fafc !important;
+    }
+    
+    .block-container {
+        padding-top: 2rem !important;
+        padding-bottom: 3rem !important;
+        padding-left: 3rem !important;
+        padding-right: 3rem !important;
+        max-width: 96% !important;
     }
     
     section[data-testid="stSidebar"] {
@@ -112,7 +120,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================================
-# ESCUDO DE SEGURIDAD Y CONEXIÓN
+# SEGURIDAD Y CONEXIÓN
 # =========================================================================
 if "autenticado" not in st.session_state or not st.session_state["autenticado"]:
     st.warning("⚠️ Acceso restringido. Por favor autentíquese en app.py.")
@@ -133,7 +141,6 @@ def formato_gs(valor):
     except Exception:
         return "Gs. 0"
 
-# Cargar Cuentas y Deudas desde Supabase
 def cargar_deudas():
     try:
         res = supabase.table("deudas").select("*").order("id", desc=True).execute()
@@ -144,7 +151,6 @@ def cargar_deudas():
         st.error(f"Error al conectar con tabla deudas: {e}")
         return pd.DataFrame()
 
-# Cargar Pedidos para permitir vinculación inteligente
 def cargar_pedidos():
     try:
         res = supabase.table("pedidos_inventario").select("*").order("id", desc=True).execute()
@@ -169,7 +175,7 @@ st.markdown("""
             💳 Gestión de Deudas y Cuentas por Cobrar
         </h1>
         <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">
-            Supervisión de saldos a favor, compromisos pendientes con proveedores, alertas de mora y liquidación automática en caja.
+            Supervisión de saldos a favor, compromisos pendientes con talleres/proveedores y liquidación directa en Caja.
         </p>
     </div>
 """, unsafe_allow_html=True)
@@ -229,7 +235,7 @@ with col_k3:
 st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
 # =========================================================================
-# NAVEGACIÓN MODERNA POR PESTAÑAS (TABS)
+# NAVEGACIÓN POR PESTAÑAS
 # =========================================================================
 tab_registro, tab_maestro, tab_vencimientos, tab_liquidacion = st.tabs([
     "📝 Asentar Nueva Cuenta",
@@ -239,7 +245,7 @@ tab_registro, tab_maestro, tab_vencimientos, tab_liquidacion = st.tabs([
 ])
 
 # -------------------------------------------------------------------------
-# TAB 1: ASENTAR NUEVA CUENTA / DEUDA
+# TAB 1: ASENTAR NUEVA CUENTA
 # -------------------------------------------------------------------------
 with tab_registro:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -253,7 +259,7 @@ with tab_registro:
             p_cant = p.get("cantidad", 1)
             p_prec = p.get("precio_venta", 0)
             p_tot = int(p_cant) * int(p_prec)
-            etiqueta = f"Pedido #{p_id} - {p_cli} | {p_prod} ({formato_gs(p_tot)})"
+            etiqueta = f"Pedido #{p_id} | {p_cli} | {p_prod} ({formato_gs(p_tot)})"
             dict_pedidos[etiqueta] = p
 
     sel_ped_vinculo = st.selectbox("🔗 Vincular con Pedido Registrado (Autocompletar datos):", list(dict_pedidos.keys()))
@@ -281,7 +287,7 @@ with tab_registro:
             tipo_deuda = st.selectbox("Tipo de Operación", ["Por Cobrar (Cliente me debe)", "Por Pagar (Debo a Proveedor/Taller)"])
             fecha_reg = st.date_input("Fecha de Registro", value=def_fecha)
             cliente_contacto = st.text_input("Nombre de la Persona / Cliente / Proveedor", value=def_cliente, placeholder="Ej: Juan Pérez / Proveedor")
-            forma_pago = st.selectbox("Forma de Pago Acordada", ["Efectivo", "Transferencia Bancaria", "Billetera Zimple / Giros", "Cheque / Pagaré", "Otro"])
+            forma_pago = st.selectbox("Forma de Pago Acordada", ["Efectivo", "Transferencia Bancaria", "Billetera Digital", "Cheque / Pagaré", "Otro"])
 
         with c2:
             monto_cuenta = st.number_input("Monto de la Deuda (Gs.)", min_value=0, value=def_monto, step=10000, format="%d")
@@ -313,14 +319,14 @@ with tab_registro:
 
                     if asentar_en_caja and estado_inicial == "Cancelado / Pagado":
                         tipo_trans = "Ingreso" if "Cobrar" in tipo_deuda else "Egreso"
-                        categoria_trans = "Ventas / Cobros" if tipo_trans == "Ingreso" else "Proveedores / Costos"
+                        categoria_trans = "Cobro de Deuda" if tipo_trans == "Ingreso" else "Proveedores / Costos"
                         
                         transaccion_caja = {
                             "fecha": str(fecha_reg),
                             "tipo": tipo_trans,
                             "categoria": categoria_trans,
                             "monto": int(monto_cuenta),
-                            "descripcion": f"Cobro/Pago Deuda: {cliente_contacto.strip()} - {concepto_det.strip()} ({forma_pago})"
+                            "descripcion": f"Cobro/Pago Cuenta: {cliente_contacto.strip()} | {concepto_det.strip()} [{forma_pago}]"
                         }
                         supabase.table("transacciones").insert(transaccion_caja).execute()
                         st.info(f"✅ Se registró automáticamente el {tipo_trans} de {formato_gs(monto_cuenta)} en Caja de Negocio.")
@@ -333,7 +339,7 @@ with tab_registro:
                 st.warning("Completa el nombre, concepto y verifica que el monto sea mayor a 0 Gs.")
 
 # -------------------------------------------------------------------------
-# TAB 2: REGISTRO MAESTRO Y EXPORTACIONES EXCEL / PDF
+# TAB 2: REGISTRO MAESTRO Y EXPORTACIONES
 # -------------------------------------------------------------------------
 with tab_maestro:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -392,22 +398,60 @@ with tab_maestro:
                 body {{ font-family: 'Inter', Arial, sans-serif; margin: 30px; color: #0f172a; }}
                 h2 {{ color: #0f172a; margin-bottom: 4px; font-size: 20px; }}
                 p {{ color: #64748b; font-size: 12px; margin-top: 0; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }}
-                th, td {{ border: 1px solid #cbd5e1; padding: 9px 12px; text-align: left; }}
-                th {{ background-color: #0f172a; color: #ffffff; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }}
+                
+                .resumen-container {{
+                    display: flex;
+                    gap: 15px;
+                    margin: 15px 0 20px 0;
+                }}
+                .card-resumen {{
+                    flex: 1;
+                    padding: 12px 14px;
+                    border-radius: 8px;
+                    border: 1px solid #cbd5e1;
+                    background-color: #f8fafc;
+                }}
+                .card-title {{
+                    font-size: 10px;
+                    text-transform: uppercase;
+                    font-weight: 700;
+                    letter-spacing: 0.05em;
+                    color: #64748b;
+                }}
+                .card-val {{
+                    font-size: 16px;
+                    font-weight: 800;
+                    margin-top: 4px;
+                }}
+                
+                table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 10px; }}
+                th, td {{ border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }}
+                th {{ background-color: #0f172a; color: #ffffff; text-transform: uppercase; font-size: 9px; letter-spacing: 0.05em; }}
                 tr:nth-child(even) {{ background-color: #f8fafc; }}
                 @media print {{
-                    .no-print {{ display: none !important; }}
                     body {{ margin: 0; }}
                 }}
             </style>
         </head>
         <body onload="window.print()">
-            <div class="no-print" style="margin-bottom: 20px; background: #e0f2fe; color: #0369a1; padding: 12px; border-radius: 8px; font-size: 12px;">
-                ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Selecciona <strong>"Guardar como PDF"</strong> para archivarlo.</em>
-            </div>
             <h2>💳 REPORTE GENERAL DE CUENTAS Y DEUDAS</h2>
-            <p>Generado el: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Saldo Neto a Favor: {formato_gs(saldo_neto_credito)}</p>
+            <p>Generado el: {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
+            
+            <div class="resumen-container">
+                <div class="card-resumen">
+                    <div class="card-title">💰 Capital por Cobrar</div>
+                    <div class="card-val" style="color: #16a34a;">{formato_gs(total_por_cobrar)}</div>
+                </div>
+                <div class="card-resumen">
+                    <div class="card-title">🧾 Compromisos por Pagar</div>
+                    <div class="card-val" style="color: #dc2626;">{formato_gs(total_por_pagar)}</div>
+                </div>
+                <div class="card-resumen">
+                    <div class="card-title">⚖️ Balance Neto a Favor</div>
+                    <div class="card-val" style="color: #2563eb;">{formato_gs(saldo_neto_credito)}</div>
+                </div>
+            </div>
+
             <table>
                 <thead>
                     <tr>
@@ -436,7 +480,7 @@ with tab_maestro:
         st.info("Sin registros de deudas o cuentas por cobrar por el momento.")
 
 # -------------------------------------------------------------------------
-# TAB 3: SEMÁFORO DE VENCIMIENTOS Y MORA
+# TAB 3: SEMÁFORO DE VENCIMIENTOS
 # -------------------------------------------------------------------------
 with tab_vencimientos:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -482,39 +526,107 @@ with tab_vencimientos:
         st.info("Sin cuentas registradas para auditar vencimientos.")
 
 # -------------------------------------------------------------------------
-# TAB 4: MODIFICAR / LIQUIDAR CUENTA
+# TAB 4: MODIFICAR / LIQUIDAR CUENTA (CON PASE DIRECTO A CAJA)
 # -------------------------------------------------------------------------
 with tab_liquidacion:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     if not df_deudas.empty:
-        st.markdown("### ⚙️ Actualizar o Liquidar Cuenta")
-        st.caption("Modifica montos, cambia estados o liquida la cuenta trasladando los fondos directamente a la Caja del Negocio.")
-        
         opciones_deudas = {
-            f"ID #{r['id']} - {r.get('cliente', '')} ({r.get('concepto', '')}) - {formato_gs(r.get('monto_deuda', 0))}": r['id']
+            f"ID #{r['id']} | [{r.get('estado')}] {r.get('cliente', '')} ({r.get('concepto', '')}) - {formato_gs(r.get('monto_deuda', 0))}": r['id']
             for _, r in df_deudas.iterrows()
         }
-        sel_deuda_txt = st.selectbox("Seleccione registro:", list(opciones_deudas.keys()))
+        sel_deuda_txt = st.selectbox("Seleccione registro para gestionar:", list(opciones_deudas.keys()))
         sel_deuda_id = opciones_deudas[sel_deuda_txt]
-        
         fila_d = df_deudas[df_deudas["id"] == sel_deuda_id].iloc[0]
+        
+        monto_actual = int(fila_d.get("monto_deuda", 0))
+        es_por_cobrar = "Cobrar" in str(fila_d.get("tipo", ""))
 
-        with st.form("form_editar_deuda"):
+        # -----------------------------------------------------------------
+        # SUBSECCIÓN A: COBRO / LIQUIDACIÓN RÁPIDA (CON PASE DIRECTO A CAJA)
+        # -----------------------------------------------------------------
+        st.markdown(f"""
+            <div style="background-color: #0b1329; border: 1px solid #1e293b; padding: 16px 20px; border-radius: 12px; margin-bottom: 15px;">
+                <span style="color: #38bdf8; font-size: 0.78rem; font-weight: 700; text-transform: uppercase;">
+                    ⚡ Cobro / Liquidación con Asiento Directo en Caja
+                </span>
+                <p style="color: #94a3b8; font-size: 0.82rem; margin: 4px 0 0 0;">
+                    Al liquidar o registrar un abono, el movimiento impactará inmediatamente en el <strong>Libro Diario de Caja</strong>.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        col_liq1, col_liq2, col_liq3 = st.columns(3)
+        with col_liq1:
+            fecha_cobro_efectivo = st.date_input("Fecha de Cobro/Pago", value=datetime.now().date(), key="f_cobro_liq")
+        with col_liq2:
+            medio_cobro_efectivo = st.selectbox("Medio de Pago Utilizado", ["Efectivo", "Transferencia Bancaria", "Billetera Digital", "Tarjeta Débito/Crédito", "Otro"], key="medio_cobro_liq")
+        with col_liq3:
+            monto_a_liquidar = st.number_input("Monto Recibido / Abonado (Gs.)", min_value=1, max_value=max(1, monto_actual), value=monto_actual, step=5000, format="%d", key="monto_liq_val")
+
+        saldo_restante_despues = monto_actual - monto_a_liquidar
+        texto_accion = "LIQUIDACIÓN TOTAL" if saldo_restante_despues == 0 else f"ABONO PARCIAL (Quedará saldo de {formato_gs(saldo_restante_despues)})"
+        st.caption(f"Acción a ejecutar: **{texto_accion}**")
+
+        btn_liquidar_ahora = st.button("🚀 ASENTAR COBRO EN CAJA Y ACTUALIZAR CUENTA", use_container_width=True)
+
+        if btn_liquidar_ahora:
+            try:
+                # 1. Asentar ingreso o egreso en Caja de Negocio (transacciones)
+                tipo_t = "Ingreso" if es_por_cobrar else "Egreso"
+                cat_t = "Cobro de Deuda" if es_por_cobrar else "Proveedores / Costos"
+                desc_t = f"Liquidación Saldo ID #{sel_deuda_id} | {fila_d.get('cliente', '')} - {fila_d.get('concepto', '')} [{medio_cobro_efectivo}]"
+                
+                supabase.table("transacciones").insert({
+                    "fecha": str(fecha_cobro_efectivo),
+                    "tipo": tipo_t,
+                    "categoria": cat_t,
+                    "monto": int(monto_a_liquidar),
+                    "descripcion": desc_t
+                }).execute()
+
+                # 2. Actualizar el registro en la tabla deudas
+                if saldo_restante_despues == 0:
+                    supabase.table("deudas").update({
+                        "estado": "Cancelado / Pagado",
+                        "forma_pago": medio_cobro_efectivo
+                    }).eq("id", sel_deuda_id).execute()
+                    st.success(f"¡Cuenta #{sel_deuda_id} liquidada al 100%! Se ingresó {formato_gs(monto_a_liquidar)} a Caja de Negocio.")
+                else:
+                    supabase.table("deudas").update({
+                        "monto_deuda": int(saldo_restante_despues),
+                        "estado": "Abono Parcial",
+                        "forma_pago": medio_cobro_efectivo
+                    }).eq("id", sel_deuda_id).execute()
+                    st.success(f"¡Abono de {formato_gs(monto_a_liquidar)} registrado en Caja! El saldo pendiente se actualizó a {formato_gs(saldo_restante_despues)}.")
+
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error durante el proceso de liquidación: {e}")
+
+        st.markdown("<hr style='border: 1px solid #1e293b; margin: 25px 0;'>", unsafe_allow_html=True)
+
+        # -----------------------------------------------------------------
+        # SUBSECCIÓN B: EDICIÓN MANUAL / ELIMINACIÓN
+        # -----------------------------------------------------------------
+        st.markdown("#### ✏️ Modificación Manual de Datos / Eliminar")
+        with st.form("form_editar_deuda_manual"):
             ed1, ed2 = st.columns(2)
             with ed1:
                 ed_cliente = st.text_input("Cliente / Contacto", value=str(fila_d.get("cliente", "")))
-                ed_monto = st.number_input("Saldo / Monto (Gs.)", value=int(fila_d.get("monto_deuda", 0)), step=10000, format="%d")
-                st.caption(f"Monto: **{formato_gs(ed_monto)}**")
+                ed_concepto = st.text_input("Concepto", value=str(fila_d.get("concepto", "")))
+                ed_monto = st.number_input("Saldo / Monto Actual (Gs.)", value=int(fila_d.get("monto_deuda", 0)), step=10000, format="%d")
             with ed2:
                 estados_d = ["Pendiente", "Abono Parcial", "Cancelado / Pagado"]
                 idx_est = estados_d.index(fila_d["estado"]) if fila_d.get("estado") in estados_d else 0
                 ed_estado_d = st.selectbox("Estado", estados_d, index=idx_est)
-                liquidar_caja = st.checkbox("Asentar saldo en Caja de Negocio al cancelar", value=False)
+                ed_forma = st.selectbox("Forma de Pago", ["Efectivo", "Transferencia Bancaria", "Billetera Digital", "Cheque / Pagaré", "Otro"])
+                ed_venc = st.date_input("Fecha Vencimiento", value=pd.to_datetime(fila_d.get("fecha_vencimiento", datetime.now().date())).date())
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             b_act, b_elim = st.columns(2)
             with b_act:
-                btn_act = st.form_submit_button("🔄 GUARDAR CAMBIOS", use_container_width=True)
+                btn_act = st.form_submit_button("🔄 GUARDAR DATOS (SIN PASAR A CAJA)", use_container_width=True)
             with b_elim:
                 btn_elim = st.form_submit_button("🗑️ ELIMINAR CUENTA", use_container_width=True)
 
@@ -522,21 +634,12 @@ with tab_liquidacion:
                 try:
                     supabase.table("deudas").update({
                         "cliente": ed_cliente.strip(),
+                        "concepto": ed_concepto.strip(),
                         "monto_deuda": int(ed_monto),
-                        "estado": ed_estado_d
+                        "estado": ed_estado_d,
+                        "forma_pago": ed_forma,
+                        "fecha_vencimiento": str(ed_venc)
                     }).eq("id", sel_deuda_id).execute()
-
-                    if liquidar_caja and ed_estado_d == "Cancelado / Pagado":
-                        tipo_trans = "Ingreso" if "Cobrar" in str(fila_d.get("tipo", "")) else "Egreso"
-                        supabase.table("transacciones").insert({
-                            "fecha": str(datetime.now().date()),
-                            "tipo": tipo_trans,
-                            "categoria": "Liquidación Deuda",
-                            "monto": int(ed_monto),
-                            "descripcion": f"Liquidación: {ed_cliente.strip()} - {fila_d.get('concepto', '')}"
-                        }).execute()
-                        st.info("Liquidación registrada en Caja.")
-
                     st.success("Cuenta actualizada exitosamente.")
                     st.rerun()
                 except Exception as e:
@@ -550,4 +653,4 @@ with tab_liquidacion:
                 except Exception as e:
                     st.error(f"Error al eliminar: {e}")
     else:
-        st.info("Sin cuentas registradas para modificar.")
+        st.info("Sin cuentas registradas para modificar o liquidar.")
