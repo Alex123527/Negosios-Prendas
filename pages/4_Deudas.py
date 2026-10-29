@@ -621,8 +621,14 @@ with tab_liquidacion:
                 idx_est = estados_d.index(fila_d["estado"]) if fila_d.get("estado") in estados_d else 0
                 ed_estado_d = st.selectbox("Estado", estados_d, index=idx_est)
                 ed_forma = st.selectbox("Forma de Pago", ["Efectivo", "Transferencia Bancaria", "Billetera Digital", "Cheque / Pagaré", "Otro"])
-                ed_venc = st.date_input("Fecha Vencimiento", value=pd.to_datetime(fila_d.get("fecha_vencimiento", datetime.now().date())).date())
+                # Conversión segura de fecha de vencimiento
+                val_venc = fila_d.get("fecha_vencimiento")
+                try:
+                    fecha_def_venc = pd.to_datetime(val_venc).date() if pd.notna(val_venc) and str(val_venc).strip() != "" else datetime.now().date()
+                except Exception:
+                    fecha_def_venc = datetime.now().date()
 
+                ed_venc = st.date_input("Fecha Vencimiento", value=fecha_def_venc)
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             b_act, b_elim = st.columns(2)
             with b_act:
