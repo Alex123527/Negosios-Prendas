@@ -635,7 +635,7 @@ with tab_liquidacion:
 
         if tx_asociada:
             monto_tx = int(tx_asociada.get("monto", 0))
-            nuevo_saldo_restaurado = monto_actual + monto_tx
+            nuevo_saldo_restaurado = monto_tx if fila_d.get("estado") == "Cancelado / Pagado" else (monto_actual + monto_tx)
             col_rev1, col_rev2 = st.columns(2)
             with col_rev1:
                 st.caption(f"**Asiento detectado:** ID #{tx_asociada.get('id')} ({tx_asociada.get('fecha')})")
