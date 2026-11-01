@@ -446,8 +446,11 @@ with tab_catalogo:
         pendientes = len(df_pedidos[df_pedidos["estado"].str.lower().str.contains("proceso|pendiente", na=False)]) if not df_pedidos.empty and "estado" in df_pedidos.columns else 0
         total_monto = int(df_pedidos["monto"].sum()) if not df_pedidos.empty and "monto" in df_pedidos.columns else 0
 
+        # Ordenar de menor a mayor por ID
+        df_impresion = df_pedidos.sort_values(by="id", ascending=True) if "id" in df_pedidos.columns else df_pedidos
+
         filas_html = ""
-        for _, f in df_pedidos.iterrows():
+        for _, f in df_impresion.iterrows():
             filas_html += f"""
             <tr>
                 <td style='text-align: center; color: #000000;'>{f.get('id', '')}</td>
