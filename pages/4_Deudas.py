@@ -372,13 +372,9 @@ with tab_maestro:
             )
 
         with col_btn_exp2:
-            # Exportación PDF Imprimible - Deudas (Diseño AGL STORE)
             fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
-
-            # Ordenar de menor a mayor por ID
             df_impresion = df_deudas.sort_values(by="id", ascending=True) if "id" in df_deudas.columns else df_deudas
 
-            # Cálculos de resumen
             calc_monto_total = int(df_deudas["monto_deuda"].sum()) if "monto_deuda" in df_deudas.columns else 0
             col_saldo = next((c for c in ["saldo", "saldo_pendiente", "pendiente"] if c in df_deudas.columns), None)
             calc_saldo = int(df_deudas[col_saldo].sum()) if col_saldo else calc_monto_total
@@ -404,117 +400,48 @@ with tab_maestro:
                 <meta charset="utf-8">
                 <title>AGL STORE - Deudas</title>
                 <style>
-                    @page {{
-                        size: auto;
-                        margin: 0;
-                    }}
+                    @page {{ size: auto; margin: 0; }}
                     body {{
                         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
                         margin: 0;
-                        padding-top: 1cm;
-                        padding-right: 1cm;
-                        padding-bottom: 1cm;
-                        padding-left: 2cm;
-                        color: #000000;
-                        background: #ffffff;
+                        padding-top: 1cm; padding-right: 1cm; padding-bottom: 1cm; padding-left: 2cm;
+                        color: #000000; background: #ffffff;
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }}
                     .header {{
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        border-bottom: 2px solid #000000;
-                        padding-bottom: 8px;
-                        margin-bottom: 14px;
+                        display: flex; justify-content: space-between; align-items: center;
+                        border-bottom: 2px solid #000000; padding-bottom: 8px; margin-bottom: 14px;
                     }}
-                    .header h1 {{
-                        margin: 0;
-                        font-size: 22px;
-                        font-weight: 800;
-                        color: #000000;
-                        letter-spacing: -0.02em;
-                    }}
-                    .fecha-emision {{
-                        text-align: right;
-                        font-size: 11px;
-                        color: #000000;
-                    }}
-                    .resumen-cards {{
-                        display: flex;
-                        gap: 12px;
-                        margin-bottom: 14px;
-                    }}
+                    .header h1 {{ margin: 0; font-size: 22px; font-weight: 800; color: #000000; letter-spacing: -0.02em; }}
+                    .fecha-emision {{ text-align: right; font-size: 11px; color: #000000; }}
+                    .resumen-cards {{ display: flex; gap: 12px; margin-bottom: 14px; }}
                     .card {{
-                        flex: 1;
-                        background: #ffffff !important;
-                        border: 1px solid #000000;
-                        border-radius: 4px;
-                        padding: 8px 12px;
+                        flex: 1; background: #ffffff !important; border: 1px solid #000000;
+                        border-radius: 4px; padding: 8px 12px;
                     }}
-                    .card-label {{
-                        font-size: 9px;
-                        font-weight: 700;
-                        text-transform: uppercase;
-                        color: #334155;
-                        letter-spacing: 0.05em;
-                    }}
-                    .card-val {{
-                        font-size: 14px;
-                        font-weight: 800;
-                        margin-top: 2px;
-                        color: #000000;
-                    }}
-                    table {{
-                        width: 100%;
-                        border-collapse: collapse;
-                        font-size: 11px;
-                    }}
-                    th, td {{
-                        border: 1px solid #cbd5e1;
-                        padding: 7px 10px;
-                        text-align: left;
-                    }}
+                    .card-label {{ font-size: 9px; font-weight: 700; text-transform: uppercase; color: #334155; letter-spacing: 0.05em; }}
+                    .card-val {{ font-size: 14px; font-weight: 800; margin-top: 2px; color: #000000; }}
+                    table {{ width: 100%; border-collapse: collapse; font-size: 11px; }}
+                    th, td {{ border: 1px solid #cbd5e1; padding: 7px 10px; text-align: left; }}
                     th {{
-                        background-color: #e2e8f0 !important;
-                        color: #0f172a !important;
-                        font-size: 9px;
-                        text-transform: uppercase;
-                        letter-spacing: 0.05em;
-                        font-weight: 700;
-                        text-align: center !important;
-                        border: 1px solid #cbd5e1;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
+                        background-color: #e2e8f0 !important; color: #0f172a !important;
+                        font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em;
+                        font-weight: 700; text-align: center !important; border: 1px solid #cbd5e1;
+                        -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
                     }}
-                    tbody tr:nth-child(odd) {{
-                        background-color: #ffffff !important;
-                    }}
+                    tbody tr:nth-child(odd) {{ background-color: #ffffff !important; }}
                     tbody tr:nth-child(even) {{
                         background-color: #f1f5f9 !important;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                    }}
-                    @media print {{
-                        body {{
-                            padding-top: 1cm;
-                            padding-right: 1cm;
-                            padding-bottom: 1cm;
-                            padding-left: 2cm;
-                        }}
+                        -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
                     }}
                 </style>
             </head>
             <body onload="window.print()">
                 <div class="header">
-                    <div>
-                        <h1>AGL STORE</h1>
-                    </div>
-                    <div class="fecha-emision">
-                        Fecha de Emisión: <strong>{fecha_hoy_corte}</strong>
-                    </div>
+                    <div><h1>AGL STORE</h1></div>
+                    <div class="fecha-emision">Fecha de Emisión: <strong>{fecha_hoy_corte}</strong></div>
                 </div>
-
                 <div class="resumen-cards">
                     <div class="card">
                         <div class="card-label">Total Registros</div>
@@ -529,7 +456,6 @@ with tab_maestro:
                         <div class="card-val">{formato_gs(calc_saldo)}</div>
                     </div>
                 </div>
-
                 <table>
                     <thead>
                         <tr>
@@ -560,3 +486,247 @@ with tab_maestro:
         st.dataframe(df_mostrar, use_container_width=True)
     else:
         st.info("Sin registros de deudas o cuentas por cobrar por el momento.")
+
+# -------------------------------------------------------------------------
+# TAB 3: SEMÁFORO DE VENCIMIENTOS
+# -------------------------------------------------------------------------
+with tab_vencimientos:
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    st.markdown("### 🔔 Control de Vencimientos y Compromisos")
+    st.caption("Semáforo preventivo según la fecha acordada de cobro o pago.")
+
+    if not df_deudas.empty and "fecha_vencimiento" in df_deudas.columns:
+        df_semaforo = df_deudas.copy()
+        df_semaforo["venc_date"] = pd.to_datetime(df_semaforo["fecha_vencimiento"], errors="coerce").dt.date
+        hoy = datetime.now().date()
+
+        # Filtrar solo cuentas no canceladas
+        df_pend = df_semaforo[~df_semaforo.get("estado", "").str.contains("Cancelado|Pagado", case=False, na=False)].copy()
+
+        if not df_pend.empty:
+            df_vencidas = df_pend[df_pend["venc_date"] < hoy]
+            df_proximas = df_pend[(df_pend["venc_date"] >= hoy) & (df_pend["venc_date"] <= hoy + timedelta(days=5))]
+            df_en_fecha = df_pend[df_pend["venc_date"] > hoy + timedelta(days=5)]
+
+            c_v1, c_v2, c_v3 = st.columns(3)
+            with c_v1:
+                st.markdown(f"""
+                    <div class="kpi-card" style="border-left: 4px solid #ef4444;">
+                        <div class="kpi-label" style="color: #ef4444;">🔴 Plazo Vencido</div>
+                        <div class="kpi-val" style="color: #ef4444;">{len(df_vencidas)} cuentas</div>
+                        <span style="font-size: 0.75rem; color: #94a3b8;">Requieren gestión inmediata</span>
+                    </div>
+                """, unsafe_allow_html=True)
+            with c_v2:
+                st.markdown(f"""
+                    <div class="kpi-card" style="border-left: 4px solid #f59e0b;">
+                        <div class="kpi-label" style="color: #f59e0b;">🟡 Por Vencer (≤ 5 días)</div>
+                        <div class="kpi-val" style="color: #f59e0b;">{len(df_proximas)} cuentas</div>
+                        <span style="font-size: 0.75rem; color: #94a3b8;">Próximos compromisos</span>
+                    </div>
+                """, unsafe_allow_html=True)
+            with c_v3:
+                st.markdown(f"""
+                    <div class="kpi-card" style="border-left: 4px solid #10b981;">
+                        <div class="kpi-label" style="color: #10b981;">🟢 En Plazo Normal</div>
+                        <div class="kpi-val" style="color: #10b981;">{len(df_en_fecha)} cuentas</div>
+                        <span style="font-size: 0.75rem; color: #94a3b8;">Plazo holgado</span>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+            cols_sem = [c for c in ["id", "fecha", "tipo", "cliente", "concepto", "monto_deuda", "fecha_vencimiento", "estado"] if c in df_pend.columns]
+            st.dataframe(df_pend[cols_sem], use_container_width=True)
+        else:
+            st.success("🎉 ¡Excelente! No hay cuentas pendientes ni vencidas actualmente.")
+    else:
+        st.info("Sin registros de deudas para calcular vencimientos.")
+
+# -------------------------------------------------------------------------
+# TAB 4: MODIFICAR / LIQUIDAR CUENTA (CON PASE DIRECTO A CAJA)
+# -------------------------------------------------------------------------
+with tab_liquidacion:
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    if not df_deudas.empty:
+        opciones_deudas = {
+            f"ID #{r['id']} | [{r.get('estado')}] {r.get('cliente', '')} ({r.get('concepto', '')}) - {formato_gs(r.get('monto_deuda', 0))}": r['id']
+            for _, r in df_deudas.iterrows()
+        }
+        sel_deuda_txt = st.selectbox("Seleccione registro para gestionar:", list(opciones_deudas.keys()))
+        sel_deuda_id = opciones_deudas[sel_deuda_txt]
+        fila_d = df_deudas[df_deudas["id"] == sel_deuda_id].iloc[0]
+        
+        monto_actual = int(fila_d.get("monto_deuda", 0))
+        es_por_cobrar = "Cobrar" in str(fila_d.get("tipo", ""))
+
+        # -----------------------------------------------------------------
+        # SUBSECCIÓN A: COBRO / LIQUIDACIÓN RÁPIDA (CON PASE DIRECTO A CAJA)
+        # -----------------------------------------------------------------
+        st.markdown("""
+            <div style="background-color: #0b1329; border: 1px solid #1e293b; padding: 16px 20px; border-radius: 12px; margin-bottom: 15px;">
+                <span style="color: #38bdf8; font-size: 0.78rem; font-weight: 700; text-transform: uppercase;">
+                    ⚡ Cobro / Liquidación con Asiento Directo en Caja
+                </span>
+                <p style="color: #94a3b8; font-size: 0.82rem; margin: 4px 0 0 0;">
+                    Al liquidar o registrar un abono, el movimiento impactará inmediatamente en el <strong>Libro Diario de Caja</strong>.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        col_liq1, col_liq2, col_liq3 = st.columns(3)
+        with col_liq1:
+            fecha_cobro_efectivo = st.date_input("Fecha de Cobro/Pago", value=datetime.now().date(), key="f_cobro_liq")
+        with col_liq2:
+            medio_cobro_efectivo = st.selectbox("Medio de Pago Utilizado", ["Efectivo", "Transferencia Bancaria", "Billetera Digital", "Tarjeta Débito/Crédito", "Otro"], key="medio_cobro_liq")
+        with col_liq3:
+            monto_a_liquidar = st.number_input("Monto Recibido / Abonado (Gs.)", min_value=1, max_value=max(1, monto_actual), value=monto_actual, step=5000, format="%d", key="monto_liq_val")
+
+        saldo_restante_despues = monto_actual - monto_a_liquidar
+        texto_accion = "LIQUIDACIÓN TOTAL" if saldo_restante_despues == 0 else f"ABONO PARCIAL (Quedará saldo de {formato_gs(saldo_restante_despues)})"
+        st.caption(f"Acción a ejecutar: **{texto_accion}**")
+
+        btn_liquidar_ahora = st.button("🚀 ASENTAR COBRO EN CAJA Y ACTUALIZAR CUENTA", use_container_width=True)
+
+        if btn_liquidar_ahora:
+            try:
+                tipo_t = "Ingreso" if es_por_cobrar else "Egreso"
+                cat_t = "Cobro de Deuda" if es_por_cobrar else "Proveedores / Costos"
+                desc_t = f"Liquidación Saldo ID #{sel_deuda_id} | {fila_d.get('cliente', '')} | {fila_d.get('concepto', '')} [{medio_cobro_efectivo}]"
+                
+                supabase.table("transacciones").insert({
+                    "fecha": str(fecha_cobro_efectivo),
+                    "tipo": tipo_t,
+                    "categoria": cat_t,
+                    "monto": int(monto_a_liquidar),
+                    "descripcion": desc_t
+                }).execute()
+
+                if saldo_restante_despues == 0:
+                    supabase.table("deudas").update({
+                        "estado": "Cancelado / Pagado",
+                        "forma_pago": medio_cobro_efectivo
+                    }).eq("id", sel_deuda_id).execute()
+                    st.success(f"¡Cuenta #{sel_deuda_id} liquidada al 100%! Se ingresó {formato_gs(monto_a_liquidar)} a Caja de Negocio.")
+                else:
+                    supabase.table("deudas").update({
+                        "monto_deuda": int(saldo_restante_despues),
+                        "estado": "Abono Parcial",
+                        "forma_pago": medio_cobro_efectivo
+                    }).eq("id", sel_deuda_id).execute()
+                    st.success(f"¡Abono de {formato_gs(monto_a_liquidar)} registrado en Caja! El saldo pendiente se actualizó a {formato_gs(saldo_restante_despues)}.")
+
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error durante el proceso de liquidación: {e}")
+
+        st.markdown("<hr style='border: 1px solid #1e293b; margin: 25px 0;'>", unsafe_allow_html=True)
+
+        # -----------------------------------------------------------------
+        # SUBSECCIÓN B: REVERTIR / ANULAR ÚLTIMA LIQUIDACIÓN
+        # -----------------------------------------------------------------
+        st.markdown("""
+            <div style="background-color: #17120a; border: 1px solid #78350f; padding: 16px 20px; border-radius: 12px; margin-bottom: 15px;">
+                <span style="color: #fbbf24; font-size: 0.78rem; font-weight: 700; text-transform: uppercase;">
+                    ↩️ Revertir / Anular Última Liquidación o Abono
+                </span>
+                <p style="color: #cbd5e1; font-size: 0.82rem; margin: 4px 0 0 0;">
+                    Busca el movimiento en <strong>Caja de Negocio</strong> vinculado a esta cuenta, elimina el asiento para no descuadrar la caja y restaura el saldo volviendo el estado a <strong>Pendiente</strong>.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        tx_asociada = None
+        try:
+            res_tx = supabase.table("transacciones").select("*").order("id", desc=True).execute()
+            if res_tx.data:
+                for t in res_tx.data:
+                    desc_check = str(t.get("descripcion", ""))
+                    if f"#{sel_deuda_id}" in desc_check and "Liquidación" in desc_check:
+                        tx_asociada = t
+                        break
+        except Exception as e:
+            st.warning(f"No se pudo consultar el historial de transacciones: {e}")
+
+        if tx_asociada:
+            monto_tx = int(tx_asociada.get("monto", 0))
+            nuevo_saldo_restaurado = monto_tx if fila_d.get("estado") == "Cancelado / Pagado" else (monto_actual + monto_tx)
+            col_rev1, col_rev2 = st.columns(2)
+            with col_rev1:
+                st.caption(f"**Asiento detectado:** ID #{tx_asociada.get('id')} ({tx_asociada.get('fecha')})")
+                st.caption(f"**Monto a revertir:** {formato_gs(monto_tx)} ({tx_asociada.get('tipo')})")
+            with col_rev2:
+                st.caption(f"**Detalle:** {tx_asociada.get('descripcion', '')}")
+                st.caption(f"**Saldo resultante:** {formato_gs(nuevo_saldo_restaurado)} (Pendiente)")
+
+            if st.button("⚠️ CONFIRMAR Y ANULAR ÚLTIMA LIQUIDACIÓN", use_container_width=True):
+                try:
+                    supabase.table("transacciones").delete().eq("id", tx_asociada["id"]).execute()
+                    supabase.table("deudas").update({
+                        "monto_deuda": int(nuevo_saldo_restaurado),
+                        "estado": "Pendiente"
+                    }).eq("id", sel_deuda_id).execute()
+
+                    st.success(f"¡Liquidación anulada! Saldo restaurado a {formato_gs(nuevo_saldo_restaurado)}.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al revertir la liquidación: {e}")
+        else:
+            st.info(f"ℹ️ No se detectó asiento con '#{sel_deuda_id}' y 'Liquidación' en Caja para anular.")
+
+        st.markdown("<hr style='border: 1px solid #1e293b; margin: 25px 0;'>", unsafe_allow_html=True)
+
+        # -----------------------------------------------------------------
+        # SUBSECCIÓN C: EDICIÓN MANUAL / ELIMINACIÓN
+        # -----------------------------------------------------------------
+        st.markdown("#### ✏️ Modificación Manual de Datos / Eliminar")
+        with st.form("form_editar_deuda_manual"):
+            ed1, ed2 = st.columns(2)
+            with ed1:
+                ed_cliente = st.text_input("Cliente / Contacto", value=str(fila_d.get("cliente", "")))
+                ed_concepto = st.text_input("Concepto", value=str(fila_d.get("concepto", "")))
+                ed_monto = st.number_input("Saldo / Monto Actual (Gs.)", value=int(fila_d.get("monto_deuda", 0)), step=10000, format="%d")
+            with ed2:
+                estados_d = ["Pendiente", "Abono Parcial", "Cancelado / Pagado"]
+                idx_est = estados_d.index(fila_d["estado"]) if fila_d.get("estado") in estados_d else 0
+                ed_estado_d = st.selectbox("Estado", estados_d, index=idx_est)
+                ed_forma = st.selectbox("Forma de Pago", ["Efectivo", "Transferencia Bancaria", "Billetera Digital", "Cheque / Pagaré", "Otro"])
+                
+                val_venc = fila_d.get("fecha_vencimiento")
+                try:
+                    fecha_def_venc = pd.to_datetime(val_venc).date() if pd.notna(val_venc) and str(val_venc).strip() != "" else datetime.now().date()
+                except Exception:
+                    fecha_def_venc = datetime.now().date()
+
+                ed_venc = st.date_input("Fecha Vencimiento", value=fecha_def_venc)
+
+            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+            b_act, b_elim = st.columns(2)
+            with b_act:
+                btn_act = st.form_submit_button("🔄 GUARDAR DATOS (SIN PASAR A CAJA)", use_container_width=True)
+            with b_elim:
+                btn_elim = st.form_submit_button("🗑️ ELIMINAR CUENTA", use_container_width=True)
+
+            if btn_act:
+                try:
+                    supabase.table("deudas").update({
+                        "cliente": ed_cliente.strip(),
+                        "concepto": ed_concepto.strip(),
+                        "monto_deuda": int(ed_monto),
+                        "estado": ed_estado_d,
+                        "forma_pago": ed_forma,
+                        "fecha_vencimiento": str(ed_venc)
+                    }).eq("id", sel_deuda_id).execute()
+                    st.success("Cuenta actualizada exitosamente.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al actualizar: {e}")
+
+            if btn_elim:
+                try:
+                    supabase.table("deudas").delete().eq("id", sel_deuda_id).execute()
+                    st.success("Cuenta eliminada de la base de datos.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al eliminar: {e}")
+    else:
+        st.info("Sin cuentas registradas para modificar o liquidar.")
