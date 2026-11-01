@@ -396,3 +396,167 @@ with tab_maestro:
                     <td style='text-align: right; font-weight: bold; color: #000000;'>{formato_gs(m_val)}</td>
                 </tr>
                 """
+
+            html_reporte_deudas = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>AGL STORE - Deudas</title>
+                <style>
+                    @page {{
+                        size: auto;
+                        margin: 0;
+                    }}
+                    body {{
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                        margin: 0;
+                        padding-top: 1cm;
+                        padding-right: 1cm;
+                        padding-bottom: 1cm;
+                        padding-left: 2cm;
+                        color: #000000;
+                        background: #ffffff;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }}
+                    .header {{
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        border-bottom: 2px solid #000000;
+                        padding-bottom: 8px;
+                        margin-bottom: 14px;
+                    }}
+                    .header h1 {{
+                        margin: 0;
+                        font-size: 22px;
+                        font-weight: 800;
+                        color: #000000;
+                        letter-spacing: -0.02em;
+                    }}
+                    .fecha-emision {{
+                        text-align: right;
+                        font-size: 11px;
+                        color: #000000;
+                    }}
+                    .resumen-cards {{
+                        display: flex;
+                        gap: 12px;
+                        margin-bottom: 14px;
+                    }}
+                    .card {{
+                        flex: 1;
+                        background: #ffffff !important;
+                        border: 1px solid #000000;
+                        border-radius: 4px;
+                        padding: 8px 12px;
+                    }}
+                    .card-label {{
+                        font-size: 9px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        color: #334155;
+                        letter-spacing: 0.05em;
+                    }}
+                    .card-val {{
+                        font-size: 14px;
+                        font-weight: 800;
+                        margin-top: 2px;
+                        color: #000000;
+                    }}
+                    table {{
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 11px;
+                    }}
+                    th, td {{
+                        border: 1px solid #cbd5e1;
+                        padding: 7px 10px;
+                        text-align: left;
+                    }}
+                    th {{
+                        background-color: #e2e8f0 !important;
+                        color: #0f172a !important;
+                        font-size: 9px;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                        font-weight: 700;
+                        text-align: center !important;
+                        border: 1px solid #cbd5e1;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }}
+                    tbody tr:nth-child(odd) {{
+                        background-color: #ffffff !important;
+                    }}
+                    tbody tr:nth-child(even) {{
+                        background-color: #f1f5f9 !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }}
+                    @media print {{
+                        body {{
+                            padding-top: 1cm;
+                            padding-right: 1cm;
+                            padding-bottom: 1cm;
+                            padding-left: 2cm;
+                        }}
+                    }}
+                </style>
+            </head>
+            <body onload="window.print()">
+                <div class="header">
+                    <div>
+                        <h1>AGL STORE</h1>
+                    </div>
+                    <div class="fecha-emision">
+                        Fecha de Emisión: <strong>{fecha_hoy_corte}</strong>
+                    </div>
+                </div>
+
+                <div class="resumen-cards">
+                    <div class="card">
+                        <div class="card-label">Total Registros</div>
+                        <div class="card-val">{len(df_deudas)}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">Monto Global</div>
+                        <div class="card-val">{formato_gs(calc_monto_total)}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">Saldo Pendiente</div>
+                        <div class="card-val">{formato_gs(calc_saldo)}</div>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 35px; text-align: center;">ID</th>
+                            <th style="width: 85px; text-align: center;">Fecha</th>
+                            <th style="width: 80px; text-align: center;">Tipo</th>
+                            <th style="width: 140px; text-align: center;">Cliente / Contacto</th>
+                            <th style="text-align: center;">Concepto</th>
+                            <th style="width: 100px; text-align: center;">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filas_html}
+                    </tbody>
+                </table>
+            </body>
+            </html>
+            """
+
+            st.download_button(
+                label="📄 Imprimir / PDF",
+                data=html_reporte_deudas,
+                file_name=f"Reporte_Deudas_{datetime.now().strftime('%Y%m%d')}.html",
+                mime="text/html",
+                use_container_width=True
+            )
+
+        st.dataframe(df_mostrar, use_container_width=True)
+    else:
+        st.info("Sin registros de deudas o cuentas por cobrar por el momento.")
