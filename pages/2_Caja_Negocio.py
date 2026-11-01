@@ -5,14 +5,14 @@ import io
 from supabase import create_client, Client
 
 st.set_page_config(
-    page_title="Caja de Negocio | PROYECTO X",
+    page_title="Caja de Negocio | AGL STORE",
     page_icon="💼",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # =========================================================================
-# SISTEMA DE ESTILOS VISUALES (Inspirado en Canvas UI de Alto Nivel)
+# SISTEMA DE ESTILOS VISUALES
 # =========================================================================
 st.markdown("""
     <style>
@@ -322,13 +322,23 @@ with tab_diario:
                 use_container_width=True
             )
 
-        # 2. Exportación PDF Imprimible
+        # 2. Exportación PDF Imprimible (Minimalista sin hora)
+        fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
+
+        # Totales calculados desde el DataFrame
+        m_col = "monto" if "monto" in df_visual.columns else "MONTO"
+        t_col = "tipo" if "tipo" in df_visual.columns else "TIPO"
+        
+        calc_ingresos = int(df_visual[df_visual[t_col] == "Ingreso"][m_col].sum()) if not df_visual.empty and m_col in df_visual.columns else 0
+        calc_egresos = int(df_visual[df_visual[t_col] == "Egreso"][m_col].sum()) if not df_visual.empty and m_col in df_visual.columns else 0
+        calc_saldo = calc_ingresos - calc_egresos
+
         filas_html = ""
         for _, f in df_visual.iterrows():
-            color_tipo = "#10b981" if f.get("tipo") == "Ingreso" else "#ef4444"
+            color_tipo = "#16a34a" if f.get("tipo") == "Ingreso" else "#dc2626"
             filas_html += f"""
             <tr>
-                <td>{f.get('id', '')}</td>
+                <td style='text-align: center;'>{f.get('id', '')}</td>
                 <td>{f.get('fecha', '')}</td>
                 <td><strong style='color: {color_tipo};'>{f.get('tipo', '')}</strong></td>
                 <td>{f.get('categoria', '')}</td>
@@ -342,31 +352,127 @@ with tab_diario:
         <html>
         <head>
             <meta charset="utf-8">
-            <title>Libro Diario de Caja - PROYECTO X</title>
+            <title>Libro Diario - AGL STORE</title>
             <style>
-                body {{ font-family: 'Inter', Arial, sans-serif; margin: 30px; color: #0f172a; }}
-                h2 {{ color: #0f172a; margin-bottom: 4px; font-size: 20px; }}
-                p {{ color: #64748b; font-size: 12px; margin-top: 0; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }}
-                th, td {{ border: 1px solid #cbd5e1; padding: 9px 12px; text-align: left; }}
-                th {{ background-color: #0f172a; color: #ffffff; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }}
-                tr:nth-child(even) {{ background-color: #f8fafc; }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                    margin: 20px 25px;
+                    color: #0f172a;
+                }}
+                .header {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-end;
+                    border-bottom: 2px solid #0f172a;
+                    padding-bottom: 8px;
+                    margin-bottom: 15px;
+                }}
+                .header h1 {{
+                    margin: 0;
+                    font-size: 20px;
+                    font-weight: 800;
+                    color: #0f172a;
+                    letter-spacing: -0.02em;
+                }}
+                .header p {{
+                    margin: 2px 0 0 0;
+                    font-size: 11px;
+                    color: #64748b;
+                }}
+                .fecha-emision {{
+                    text-align: right;
+                    font-size: 11px;
+                    color: #475569;
+                }}
+                .resumen-cards {{
+                    display: flex;
+                    gap: 12px;
+                    margin-bottom: 15px;
+                }}
+                .card {{
+                    flex: 1;
+                    background: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 6px;
+                    padding: 8px 12px;
+                }}
+                .card-label {{
+                    font-size: 9px;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    color: #64748b;
+                    letter-spacing: 0.05em;
+                }}
+                .card-val {{
+                    font-size: 15px;
+                    font-weight: 800;
+                    margin-top: 2px;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 11px;
+                }}
+                th, td {{
+                    border: 1px solid #cbd5e1;
+                    padding: 7px 10px;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #0f172a;
+                    color: #ffffff;
+                    font-size: 9px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                }}
+                tr:nth-child(even) {{
+                    background-color: #f8fafc;
+                }}
                 @media print {{
-                    .no-print {{ display: none !important; }}
                     body {{ margin: 0; }}
+                    .no-print {{ display: none !important; }}
                 }}
             </style>
         </head>
         <body onload="window.print()">
-            <div class="no-print" style="margin-bottom: 20px; background: #e0f2fe; color: #0369a1; padding: 12px; border-radius: 8px; font-size: 12px;">
+            <div class="no-print" style="margin-bottom: 15px; background: #e0f2fe; color: #0369a1; padding: 10px; border-radius: 6px; font-size: 11px;">
                 ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Selecciona <strong>"Guardar como PDF"</strong> para archivarlo.</em>
             </div>
-            <h2>💼 LIBRO DIARIO DE CAJA COMERCIAL</h2>
-            <p>Emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Saldo Neto Actual: {formato_gs(saldo_neto)}</p>
+
+            <div class="header">
+                <div>
+                    <h1>AGL STORE</h1>
+                    <p>Libro Diario de Caja Comercial</p>
+                </div>
+                <div class="fecha-emision">
+                    Fecha de Emisión: <strong>{fecha_hoy_corte}</strong>
+                </div>
+            </div>
+
+            <div class="resumen-cards">
+                <div class="card">
+                    <div class="card-label">Ingresos Totales</div>
+                    <div class="card-val" style="color: #16a34a;">{formato_gs(calc_ingresos)}</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Egresos Totales</div>
+                    <div class="card-val" style="color: #dc2626;">{formato_gs(calc_egresos)}</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Saldo en Caja</div>
+                    <div class="card-val" style="color: #0284c7;">{formato_gs(calc_saldo)}</div>
+                </div>
+            </div>
+
             <table>
                 <thead>
                     <tr>
-                        <th>ID</th><th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Monto</th><th>Descripción</th>
+                        <th style="width: 35px; text-align: center;">ID</th>
+                        <th style="width: 85px;">Fecha</th>
+                        <th style="width: 70px;">Tipo</th>
+                        <th style="width: 120px;">Categoría</th>
+                        <th style="width: 95px; text-align: right;">Monto</th>
+                        <th>Descripción</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -379,8 +485,8 @@ with tab_diario:
 
         with col_exp2:
             st.download_button(
-                label="📕 Imprimir / PDF",
-                data=html_reporte.encode('utf-8'),
+                label="📄 Imprimir / PDF",
+                data=html_reporte,
                 file_name=f"Reporte_Caja_{datetime.now().strftime('%Y%m%d')}.html",
                 mime="text/html",
                 use_container_width=True
@@ -436,7 +542,7 @@ with tab_edicion:
         st.caption("Selecciona cualquier asiento del libro diario para ajustar la descripción o remover registros.")
         
         opciones_caja = {
-            f"ID #{row['id']} | {row.get('fecha')} | {row.get('tipo')} | {formato_gs(row.get('monto'))} - {str(row.get('descripcion'))[:40]}...": row['id']
+            f"ID #{row['id']} | {row.get('fecha')} | {row.get('tipo')} | {formato_gs(row.get('monto'))} | {str(row.get('descripcion'))[:40]}...": row['id']
             for _, row in df_tx.iterrows()
         }
         
