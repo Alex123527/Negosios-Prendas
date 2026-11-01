@@ -322,7 +322,7 @@ with tab_diario:
                 use_container_width=True
             )
 
-        # 2. Exportación PDF Imprimible (Márgenes exactos y forzado de color de impresión)
+        # 2. Exportación PDF Imprimible (Diseño Limpio Monocromático)
         fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
 
         # Totales calculados desde el DataFrame
@@ -355,27 +355,22 @@ with tab_diario:
             <style>
                 @page {{
                     size: auto;
-                    margin: 0; /* Anula completamente los encabezados y pies de página nativos del navegador */
+                    margin: 12mm 15mm;
                 }}
                 body {{
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
                     margin: 0;
-                    padding-top: 1cm;
-                    padding-right: 1cm;
-                    padding-bottom: 1cm;
-                    padding-left: 2cm; /* 2 centímetros en el margen izquierdo */
+                    padding: 0;
                     color: #000000;
                     background: #ffffff;
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
                 }}
                 .header {{
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                     border-bottom: 2px solid #000000;
-                    padding-bottom: 8px;
-                    margin-bottom: 14px;
+                    padding-bottom: 10px;
+                    margin-bottom: 16px;
                 }}
                 .header h1 {{
                     margin: 0;
@@ -392,24 +387,24 @@ with tab_diario:
                 .resumen-cards {{
                     display: flex;
                     gap: 12px;
-                    margin-bottom: 14px;
+                    margin-bottom: 16px;
                 }}
                 .card {{
                     flex: 1;
-                    background: #ffffff !important;
+                    background: #ffffff;
                     border: 1px solid #000000;
-                    border-radius: 4px;
+                    border-radius: 6px;
                     padding: 8px 12px;
                 }}
                 .card-label {{
                     font-size: 9px;
                     font-weight: 700;
                     text-transform: uppercase;
-                    color: #334155;
+                    color: #475569;
                     letter-spacing: 0.05em;
                 }}
                 .card-val {{
-                    font-size: 14px;
+                    font-size: 15px;
                     font-weight: 800;
                     margin-top: 2px;
                     color: #000000;
@@ -420,43 +415,27 @@ with tab_diario:
                     font-size: 11px;
                 }}
                 th, td {{
-                    border: 1px solid #475569;
+                    border: 1px solid #cbd5e1;
                     padding: 7px 10px;
                     text-align: left;
                 }}
                 th {{
-                    background-color: #0f172a !important; /* Fondo oscuro asegurado */
-                    color: #ffffff !important;           /* Texto blanco de alto contraste */
+                    background-color: #e2e8f0 !important;
+                    color: #0f172a !important;
                     font-size: 9px;
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
                     font-weight: 700;
-                    border: 1px solid #0f172a;
+                    text-align: center !important;
+                    border: 1px solid #cbd5e1;
                     -webkit-print-color-adjust: exact !important;
                     print-color-adjust: exact !important;
-                }}
-                tbody tr:nth-child(odd) {{
-                    background-color: #ffffff !important;
-                }}
-                tbody tr:nth-child(even) {{
-                    background-color: #f1f5f9 !important;
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                }}
-                @media print {{
-                    .no-print {{ display: none !important; }}
-                    body {{
-                        padding-top: 1cm;
-                        padding-right: 1cm;
-                        padding-bottom: 1cm;
-                        padding-left: 2cm;
-                    }}
                 }}
             </style>
         </head>
         <body onload="window.print()">
-            <div class="no-print" style="margin-bottom: 15px; background: #f8fafc; color: #0f172a; padding: 8px 12px; border-radius: 6px; font-size: 11px; border: 1px solid #cbd5e1;">
-                ℹ️ <em>Se abrirá automáticamente el cuadro de impresión con los márgenes de 2 cm (izq) y 1 cm (bordes). Si las cabeceras no se muestran oscuras en la vista previa, activa la casilla <strong>"Gráficos de fondo"</strong>.</em>
+            <div class="no-print" style="margin-bottom: 15px; background: #f1f5f9; color: #0f172a; padding: 10px; border-radius: 6px; font-size: 11px; border: 1px solid #cbd5e1;">
+                ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Desmarca <strong>"Encabezados y pies de página"</strong> en las opciones de impresión para ocultar la ruta del archivo.</em>
             </div>
 
             <div class="header">
@@ -483,15 +462,15 @@ with tab_diario:
                 </div>
             </div>
 
-            <table>
+           <table>
                 <thead>
                     <tr>
                         <th style="width: 35px; text-align: center;">ID</th>
-                        <th style="width: 85px;">Fecha</th>
-                        <th style="width: 70px;">Tipo</th>
-                        <th style="width: 120px;">Categoría</th>
-                        <th style="width: 95px; text-align: right;">Monto</th>
-                        <th>Descripción</th>
+                        <th style="width: 85px; text-align: center;">Fecha</th>
+                        <th style="width: 70px; text-align: center;">Tipo</th>
+                        <th style="width: 120px; text-align: center;">Categoría</th>
+                        <th style="width: 95px; text-align: center;">Monto</th>
+                        <th style="text-align: center;">Descripción</th>
                     </tr>
                 </thead>
                 <tbody>
