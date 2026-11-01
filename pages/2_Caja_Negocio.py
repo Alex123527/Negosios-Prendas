@@ -322,7 +322,7 @@ with tab_diario:
                 use_container_width=True
             )
 
-        # 2. Exportación PDF Imprimible (Minimalista sin hora)
+        # 2. Exportación PDF Imprimible (Diseño Limpio Monocromático)
         fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
 
         # Totales calculados desde el DataFrame
@@ -335,15 +335,14 @@ with tab_diario:
 
         filas_html = ""
         for _, f in df_visual.iterrows():
-            color_tipo = "#16a34a" if f.get("tipo") == "Ingreso" else "#dc2626"
             filas_html += f"""
             <tr>
-                <td style='text-align: center;'>{f.get('id', '')}</td>
-                <td>{f.get('fecha', '')}</td>
-                <td><strong style='color: {color_tipo};'>{f.get('tipo', '')}</strong></td>
-                <td>{f.get('categoria', '')}</td>
-                <td style='text-align: right; font-weight: bold;'>{f.get('MONTO (GS.)', '')}</td>
-                <td>{f.get('descripcion', '')}</td>
+                <td style='text-align: center; color: #000000;'>{f.get('id', '')}</td>
+                <td style='color: #000000;'>{f.get('fecha', '')}</td>
+                <td style='color: #000000; font-weight: 600;'>{f.get('tipo', '')}</td>
+                <td style='color: #000000;'>{f.get('categoria', '')}</td>
+                <td style='text-align: right; font-weight: bold; color: #000000;'>{f.get('MONTO (GS.)', '')}</td>
+                <td style='color: #000000;'>{f.get('descripcion', '')}</td>
             </tr>
             """
 
@@ -354,45 +353,46 @@ with tab_diario:
             <meta charset="utf-8">
             <title>Libro Diario - AGL STORE</title>
             <style>
+                @page {{
+                    size: auto;
+                    margin: 12mm 15mm;
+                }}
                 body {{
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-                    margin: 20px 25px;
-                    color: #0f172a;
+                    margin: 0;
+                    padding: 0;
+                    color: #000000;
+                    background: #ffffff;
                 }}
                 .header {{
                     display: flex;
                     justify-content: space-between;
-                    align-items: flex-end;
-                    border-bottom: 2px solid #0f172a;
-                    padding-bottom: 8px;
-                    margin-bottom: 15px;
+                    align-items: center;
+                    border-bottom: 2px solid #000000;
+                    padding-bottom: 10px;
+                    margin-bottom: 16px;
                 }}
                 .header h1 {{
                     margin: 0;
-                    font-size: 20px;
+                    font-size: 22px;
                     font-weight: 800;
-                    color: #0f172a;
+                    color: #000000;
                     letter-spacing: -0.02em;
-                }}
-                .header p {{
-                    margin: 2px 0 0 0;
-                    font-size: 11px;
-                    color: #64748b;
                 }}
                 .fecha-emision {{
                     text-align: right;
                     font-size: 11px;
-                    color: #475569;
+                    color: #000000;
                 }}
                 .resumen-cards {{
                     display: flex;
                     gap: 12px;
-                    margin-bottom: 15px;
+                    margin-bottom: 16px;
                 }}
                 .card {{
                     flex: 1;
-                    background: #f8fafc;
-                    border: 1px solid #e2e8f0;
+                    background: #ffffff;
+                    border: 1px solid #000000;
                     border-radius: 6px;
                     padding: 8px 12px;
                 }}
@@ -400,13 +400,14 @@ with tab_diario:
                     font-size: 9px;
                     font-weight: 700;
                     text-transform: uppercase;
-                    color: #64748b;
+                    color: #475569;
                     letter-spacing: 0.05em;
                 }}
                 .card-val {{
                     font-size: 15px;
                     font-weight: 800;
                     margin-top: 2px;
+                    color: #000000;
                 }}
                 table {{
                     width: 100%;
@@ -419,30 +420,33 @@ with tab_diario:
                     text-align: left;
                 }}
                 th {{
-                    background-color: #0f172a;
+                    background-color: #000000;
                     color: #ffffff;
                     font-size: 9px;
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
+                    font-weight: 700;
+                    border-color: #000000;
                 }}
-                tr:nth-child(even) {{
-                    background-color: #f8fafc;
+                tbody tr:nth-child(odd) {{
+                    background-color: #ffffff;
+                }}
+                tbody tr:nth-child(even) {{
+                    background-color: #f1f5f9;
                 }}
                 @media print {{
-                    body {{ margin: 0; }}
                     .no-print {{ display: none !important; }}
                 }}
             </style>
         </head>
         <body onload="window.print()">
-            <div class="no-print" style="margin-bottom: 15px; background: #e0f2fe; color: #0369a1; padding: 10px; border-radius: 6px; font-size: 11px;">
-                ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Selecciona <strong>"Guardar como PDF"</strong> para archivarlo.</em>
+            <div class="no-print" style="margin-bottom: 15px; background: #f1f5f9; color: #0f172a; padding: 10px; border-radius: 6px; font-size: 11px; border: 1px solid #cbd5e1;">
+                ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Desmarca <strong>"Encabezados y pies de página"</strong> en las opciones de impresión para ocultar la ruta del archivo.</em>
             </div>
 
             <div class="header">
                 <div>
                     <h1>AGL STORE</h1>
-                    <p>Libro Diario de Caja Comercial</p>
                 </div>
                 <div class="fecha-emision">
                     Fecha de Emisión: <strong>{fecha_hoy_corte}</strong>
@@ -452,15 +456,15 @@ with tab_diario:
             <div class="resumen-cards">
                 <div class="card">
                     <div class="card-label">Ingresos Totales</div>
-                    <div class="card-val" style="color: #16a34a;">{formato_gs(calc_ingresos)}</div>
+                    <div class="card-val">{formato_gs(calc_ingresos)}</div>
                 </div>
                 <div class="card">
                     <div class="card-label">Egresos Totales</div>
-                    <div class="card-val" style="color: #dc2626;">{formato_gs(calc_egresos)}</div>
+                    <div class="card-val">{formato_gs(calc_egresos)}</div>
                 </div>
                 <div class="card">
                     <div class="card-label">Saldo en Caja</div>
-                    <div class="card-val" style="color: #0284c7;">{formato_gs(calc_saldo)}</div>
+                    <div class="card-val">{formato_gs(calc_saldo)}</div>
                 </div>
             </div>
 
