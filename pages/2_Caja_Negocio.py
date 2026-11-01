@@ -351,26 +351,31 @@ with tab_diario:
         <html>
         <head>
             <meta charset="utf-8">
-            <title>Libro Diario - AGL STORE</title>
+            <title>AGL STORE</title>
             <style>
                 @page {{
                     size: auto;
-                    margin: 12mm 15mm;
+                    margin: 0;
                 }}
                 body {{
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
                     margin: 0;
-                    padding: 0;
+                    padding-top: 1cm;
+                    padding-right: 1cm;
+                    padding-bottom: 1cm;
+                    padding-left: 2cm;
                     color: #000000;
                     background: #ffffff;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
                 }}
                 .header {{
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                     border-bottom: 2px solid #000000;
-                    padding-bottom: 10px;
-                    margin-bottom: 16px;
+                    padding-bottom: 8px;
+                    margin-bottom: 14px;
                 }}
                 .header h1 {{
                     margin: 0;
@@ -387,24 +392,24 @@ with tab_diario:
                 .resumen-cards {{
                     display: flex;
                     gap: 12px;
-                    margin-bottom: 16px;
+                    margin-bottom: 14px;
                 }}
                 .card {{
                     flex: 1;
-                    background: #ffffff;
+                    background: #ffffff !important;
                     border: 1px solid #000000;
-                    border-radius: 6px;
+                    border-radius: 4px;
                     padding: 8px 12px;
                 }}
                 .card-label {{
                     font-size: 9px;
                     font-weight: 700;
                     text-transform: uppercase;
-                    color: #475569;
+                    color: #334155;
                     letter-spacing: 0.05em;
                 }}
                 .card-val {{
-                    font-size: 15px;
+                    font-size: 14px;
                     font-weight: 800;
                     margin-top: 2px;
                     color: #000000;
@@ -431,13 +436,25 @@ with tab_diario:
                     -webkit-print-color-adjust: exact !important;
                     print-color-adjust: exact !important;
                 }}
+                tbody tr:nth-child(odd) {{
+                    background-color: #ffffff !important;
+                }}
+                tbody tr:nth-child(even) {{
+                    background-color: #f1f5f9 !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }}
+                @media print {{
+                    body {{
+                        padding-top: 1cm;
+                        padding-right: 1cm;
+                        padding-bottom: 1cm;
+                        padding-left: 2cm;
+                    }}
+                }}
             </style>
         </head>
         <body onload="window.print()">
-            <div class="no-print" style="margin-bottom: 15px; background: #f1f5f9; color: #0f172a; padding: 10px; border-radius: 6px; font-size: 11px; border: 1px solid #cbd5e1;">
-                ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Desmarca <strong>"Encabezados y pies de página"</strong> en las opciones de impresión para ocultar la ruta del archivo.</em>
-            </div>
-
             <div class="header">
                 <div>
                     <h1>AGL STORE</h1>
@@ -462,7 +479,7 @@ with tab_diario:
                 </div>
             </div>
 
-           <table>
+            <table>
                 <thead>
                     <tr>
                         <th style="width: 35px; text-align: center;">ID</th>
