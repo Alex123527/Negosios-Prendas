@@ -340,7 +340,7 @@ with tab_registro:
                 if monto_sena > 0:
                     ingreso_caja = {
                         "fecha": str(fecha_ped),
-                        "tipo": "Ingreso",
+                        "tip # VINCo": "Ingreso",
                         "categoria": "Ventas de Prendas",
                         "monto": int(monto_sena),
                         "descripcion": f"Seña Pedido #{pedido_creado_id} | {modelo_ped.strip()} ({cliente_ped.strip()}) [{medio_pago_seña}]"
@@ -348,19 +348,26 @@ with tab_registro:
                     supabase.table("transacciones").insert(ingreso_caja).execute()
                     st.toast(f"✅ Caja de Negocio: Seña de {formato_gs(monto_sena)} ingresada.")
 
-                # VINCULACIÓN 2: Pase a Cuentas por Cobrar con nombres exactos de tabla deudas
+                # VINCULACIÓN 2: Pase a Cuentas por Cobrar con todos los campos requeridos
                 if saldo_pendiente > 0:
+                    # Fecha de vencimiento tentativa: 15 días posteriores al pedido
+                    fecha_limite = (datetime.strptime(str(fecha_ped), "%Y-%m-%d").date() + timedelta(days=15))
+                    
                     cuenta_cobrar = {
                         "fecha": str(fecha_ped),
                         "tipo": "Por Cobrar (Cliente me debe)",
                         "cliente": cliente_ped.strip(),
                         "concepto": f"Saldo Pedido #{pedido_creado_id} | {modelo_ped.strip()} ({cant_ped} uds.)",
                         "monto_deuda": int(saldo_pendiente),
+                        "forma_pago": medio_pago_seña if medio_pago_seña != "Sin Seña" else "Efectivo",
+                        "fecha_vencimiento": str(fecha_limite),
                         "estado": "Pendiente"
                     }
-                    supabase.table("deudas").insert(cuenta_cobrar).execute()
-                    st.toast(f"💳 Cuentas por Cobrar: Saldo de {formato_gs(saldo_pendiente)} asentado.")
-
+                    try:
+                        res_d = supabase.table("deudas").insert(cuenta_cobrar).execute()
+                        st.toast(f"💳 Cuentas por Cobrar: Saldo de {formato_gs(saldo_pendiente)} asentado.")
+                    except Exception as err_deuda:
+                        st.warning(f"Aviso de sincronización en deudas: {err_deuda}")
                 # VINCULACIÓN 3: Flete absorbido por el negocio
                 if quien_paga_envio == "Negocio (Envío Gratis / Promoción)" and costo_envio > 0:
                     egreso_envio = {
@@ -431,90 +438,169 @@ with tab_catalogo:
                 use_container_width=True
             )
 
-        # 2. Exportación PDF Imprimible (Limpio y con Resumen Superior)
+        # Exportación PDF Imprimible - Pedidos (Diseño AGL STORE)
+        fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
+
+        # Cálculos de resumen
+        total_pedidos = len(df_pedidos) if not df_pedidos.empty else 0
+        pendientes = len(df_pedidos[df_pedidos["estado"].str.lower().str.contains("proceso|pendiente", na=False)]) if not df_pedidos.empty and "estado" in df_pedidos.columns else 0
+        total_monto = int(df_pedidos["monto"].sum()) if not df_pedidos.empty and "monto" in df_pedidos.columns else 0
+
         filas_html = ""
-        for _, f in df_mostrar.iterrows():
+        for _, f in df_pedidos.iterrows():
             filas_html += f"""
             <tr>
-                <td>{f.get('id', '')}</td>
-                <td>{f.get('fecha', '')}</td>
-                <td><strong>{f.get('cliente', '')}</strong></td>
-                <td>{f.get('modelo_prenda', '')} ({f.get('talle', '')})</td>
-                <td style='text-align: center;'>{f.get('cantidad', '')}</td>
-                <td style='text-align: right; font-weight: bold;'>{f.get('TOTAL PACTADO (GS.)', '')}</td>
-                <td>{f.get('canal', '')}</td>
-                <td>{f.get('estado', '')}</td>
+                <td style='text-align: center; color: #000000;'>{f.get('id', '')}</td>
+                <td style='color: #000000;'>{f.get('fecha', '')}</td>
+                <td style='color: #000000; font-weight: 600;'>{f.get('cliente', '')}</td>
+                <td style='color: #000000;'>{f.get('producto', '')}</td>
+                <td style='text-align: center; color: #000000;'>{f.get('estado', '')}</td>
+                <td style='text-align: right; font-weight: bold; color: #000000;'>{formato_gs(f.get('monto', 0))}</td>
             </tr>
             """
-            
+
         html_reporte = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
-            <title>Reporte de Pedidos - PROYECTO X</title>
+            <title>AGL STORE - Pedidos</title>
             <style>
-                body {{ font-family: 'Inter', Arial, sans-serif; margin: 30px; color: #0f172a; }}
-                h2 {{ color: #0f172a; margin-bottom: 4px; font-size: 20px; }}
-                p {{ color: #64748b; font-size: 12px; margin-top: 0; }}
-                
-                .resumen-container {{
+                @page {{
+                    size: auto;
+                    margin: 0;
+                }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                    margin: 0;
+                    padding-top: 1cm;
+                    padding-right: 1cm;
+                    padding-bottom: 1cm;
+                    padding-left: 2cm;
+                    color: #000000;
+                    background: #ffffff;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }}
+                .header {{
                     display: flex;
-                    gap: 15px;
-                    margin: 15px 0 20px 0;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 2px solid #000000;
+                    padding-bottom: 8px;
+                    margin-bottom: 14px;
                 }}
-                .card-resumen {{
+                .header h1 {{
+                    margin: 0;
+                    font-size: 22px;
+                    font-weight: 800;
+                    color: #000000;
+                    letter-spacing: -0.02em;
+                }}
+                .fecha-emision {{
+                    text-align: right;
+                    font-size: 11px;
+                    color: #000000;
+                }}
+                .resumen-cards {{
+                    display: flex;
+                    gap: 12px;
+                    margin-bottom: 14px;
+                }}
+                .card {{
                     flex: 1;
-                    padding: 12px 14px;
-                    border-radius: 8px;
-                    border: 1px solid #cbd5e1;
-                    background-color: #f8fafc;
+                    background: #ffffff !important;
+                    border: 1px solid #000000;
+                    border-radius: 4px;
+                    padding: 8px 12px;
                 }}
-                .card-title {{
-                    font-size: 10px;
-                    text-transform: uppercase;
+                .card-label {{
+                    font-size: 9px;
                     font-weight: 700;
+                    text-transform: uppercase;
+                    color: #334155;
                     letter-spacing: 0.05em;
-                    color: #64748b;
                 }}
                 .card-val {{
-                    font-size: 16px;
+                    font-size: 14px;
                     font-weight: 800;
-                    margin-top: 4px;
+                    margin-top: 2px;
+                    color: #000000;
                 }}
-                
-                table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 10px; }}
-                th, td {{ border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }}
-                th {{ background-color: #0f172a; color: #ffffff; text-transform: uppercase; font-size: 9px; letter-spacing: 0.05em; }}
-                tr:nth-child(even) {{ background-color: #f8fafc; }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 11px;
+                }}
+                th, td {{
+                    border: 1px solid #cbd5e1;
+                    padding: 7px 10px;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #e2e8f0 !important;
+                    color: #0f172a !important;
+                    font-size: 9px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    font-weight: 700;
+                    text-align: center !important;
+                    border: 1px solid #cbd5e1;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }}
+                tbody tr:nth-child(odd) {{
+                    background-color: #ffffff !important;
+                }}
+                tbody tr:nth-child(even) {{
+                    background-color: #f1f5f9 !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }}
                 @media print {{
-                    body {{ margin: 0; }}
+                    body {{
+                        padding-top: 1cm;
+                        padding-right: 1cm;
+                        padding-bottom: 1cm;
+                        padding-left: 2cm;
+                    }}
                 }}
             </style>
         </head>
         <body onload="window.print()">
-            <h2>📦 AUDITORÍA Y REPORTE DE PEDIDOS</h2>
-            <p>Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
-            
-            <div class="resumen-container">
-                <div class="card-resumen">
-                    <div class="card-title">⏳ Total Pendiente</div>
-                    <div class="card-val" style="color: #d97706;">{formato_gs(total_pendiente)}</div>
+            <div class="header">
+                <div>
+                    <h1>AGL STORE</h1>
                 </div>
-                <div class="card-resumen">
-                    <div class="card-title">✅ Entregado / Pagado</div>
-                    <div class="card-val" style="color: #16a34a;">{formato_gs(total_pagado)}</div>
+                <div class="fecha-emision">
+                    Fecha de Emisión: <strong>{fecha_hoy_corte}</strong>
                 </div>
-                <div class="card-resumen">
-                    <div class="card-title">💎 Total Cartera General</div>
-                    <div class="card-val" style="color: #2563eb;">{formato_gs(total_general)}</div>
+            </div>
+
+            <div class="resumen-cards">
+                <div class="card">
+                    <div class="card-label">Total de Pedidos</div>
+                    <div class="card-val">{total_pedidos}</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">En Proceso / Pendientes</div>
+                    <div class="card-val">{pendientes}</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Monto Global</div>
+                    <div class="card-val">{formato_gs(total_monto)}</div>
                 </div>
             </div>
 
             <table>
                 <thead>
                     <tr>
-                        <th>ID</th><th>Fecha</th><th>Cliente</th><th>Prenda / Talle</th><th>Cant.</th><th>Total</th><th>Detalle / Finanzas</th><th>Estado</th>
+                        <th style="width: 35px; text-align: center;">ID</th>
+                        <th style="width: 85px; text-align: center;">Fecha</th>
+                        <th style="width: 130px; text-align: center;">Cliente</th>
+                        <th style="text-align: center;">Prenda / Detalle</th>
+                        <th style="width: 90px; text-align: center;">Estado</th>
+                        <th style="width: 100px; text-align: center;">Monto</th>
                     </tr>
                 </thead>
                 <tbody>
