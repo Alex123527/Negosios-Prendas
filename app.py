@@ -198,24 +198,24 @@ banner_html = """
 st.markdown(banner_html, unsafe_allow_html=True)
 
 # =========================================================================
-# TARJETAS NATIVAS CLICKEABLES
+# TARJETAS NATIVAS CLICKEABLES (ORDEN DEL MENÚ LATERAL)
 # =========================================================================
 col1, col2 = st.columns(2)
 
 with col1:
-    btn_pedidos = st.button(
-        "🏷️ **PEDIDOS Y CATÁLOGO DE PRENDAS**  \n\n"
-        "Control de catálogo de prendas, registro por talle, fletes con transportadoras, calculadora de márgenes comerciales y exportación en Excel y PDF.",
-        key="card_pedidos",
+    btn_gastos = st.button(
+        "👤 **1. GASTOS PERSONALES**  \n\n"
+        "Control independiente de salidas privadas por categoría (supermercado, combustible, servicios) para blindar y proteger el capital de giro.",
+        key="card_gastos",
         use_container_width=True
     )
-    if btn_pedidos:
-        st.switch_page("pages/3_Pedidos_Precios.py")
+    if btn_gastos:
+        st.switch_page("pages/1_Gastos_Personales.py")
 
     st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
     btn_caja = st.button(
-        "💼 **CAJA DE NEGOCIO Y TESORERÍA**  \n\n"
+        "💼 **2. CAJA NEGOCIO**  \n\n"
         "Libro diario de ingresos y egresos comerciales, rendición por clientes, adjuntos de comprobantes y arqueo del saldo neto disponible.",
         key="card_caja",
         use_container_width=True
@@ -225,14 +225,35 @@ with col1:
 
     st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
-    btn_gastos = st.button(
-        "👤 **GESTIÓN DE GASTOS PERSONALES**  \n\n"
-        "Control independiente de salidas privadas por categoría (supermercado, combustible, servicios) para blindar y proteger el capital de giro.",
-        key="card_gastos",
+    btn_pedidos = st.button(
+        "🏷️ **3. PEDIDOS PRECIOS**  \n\n"
+        "Control de catálogo de prendas, registro por talle, fletes con transportadoras, calculadora de márgenes comerciales y exportación en Excel y PDF.",
+        key="card_pedidos",
         use_container_width=True
     )
-    if btn_gastos:
-        st.switch_page("pages/1_Gastos_Personales.py")
+    if btn_pedidos:
+        st.switch_page("pages/3_Pedidos_Precios.py")
+
+with col2:
+    btn_deudas = st.button(
+        "💳 **4. DEUDAS**  \n\n"
+        "Supervisión del capital en la calle, compromisos con proveedores, semáforo de vencimientos en mora y liquidación directa con pase a caja.",
+        key="card_deudas",
+        use_container_width=True
+    )
+    if btn_deudas:
+        st.switch_page("pages/4_Deudas.py")
+
+    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+
+    btn_finanzas = st.button(
+        "📈 **5. FINANZAS GENERALES**  \n\n"
+        "Consolidación financiera ejecutiva, balance integral entre negocio y retiros personales, rentabilidad por prenda y descarga de libros multi-hoja en Excel.",
+        key="card_finanzas",
+        use_container_width=True
+    )
+    if btn_finanzas:
+        st.switch_page("pages/5_Finanzas_Generales.py")
 
 with col2:
     btn_deudas = st.button(
