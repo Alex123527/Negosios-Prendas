@@ -680,7 +680,20 @@ with tab_editar:
                 except Exception as e:
                     st.error(f"Error al actualizar: {e}")
 
-            if btn_elim:
+            if btn_actualizar:
+                try:
+                    supabase.table("gastos_personales").update({
+                        "descripcion": e_desc.strip(),
+                        "monto": int(e_monto),
+                        "categoria": e_cat,
+                        "fecha": str(e_fecha)
+                    }).eq("id", id_sel).execute()
+                    st.success("Gasto actualizado exitosamente en Supabase.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al actualizar: {e}")
+
+            if btn_eliminar:
                 try:
                     supabase.table("gastos_personales").delete().eq("id", id_sel).execute()
                     st.success("Gasto eliminado correctamente.")
