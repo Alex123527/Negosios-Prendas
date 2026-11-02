@@ -5,14 +5,14 @@ import io
 from supabase import create_client, Client
 
 st.set_page_config(
-    page_title="Gastos Personales | PROYECTO X",
+    page_title="Gastos Personales | AGL STORE",
     page_icon="👤",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # =========================================================================
-# SISTEMA DE ESTILOS VISUALES (Futurist Premium / Canvas Dark UI)
+# SISTEMA DE ESTILOS VISUALES
 # =========================================================================
 st.markdown("""
     <style>
@@ -217,7 +217,6 @@ st.markdown("""
 
 mes_actual = datetime.now().strftime("%Y-%m")
 
-# Presupuesto mensual configurable en sesión
 if "presupuesto_mensual" not in st.session_state:
     st.session_state["presupuesto_mensual"] = 3500000
 
@@ -241,7 +240,6 @@ if not df_gastos.empty and "periodo" in df_gastos.columns:
             format="%d"
         )
     
-    # Aplicar filtros
     df_filtrado = df_gastos.copy()
     if filtro_periodo != "Todos":
         df_filtrado = df_filtrado[df_filtrado["periodo"] == filtro_periodo]
@@ -258,11 +256,9 @@ else:
 total_filtrado = int(df_filtrado["monto_num"].sum()) if not df_filtrado.empty else 0
 cant_movimientos = len(df_filtrado)
 
-# Promedio diario del período
 dias_con_gasto = df_filtrado["fecha_dt"].dt.date.nunique() if not df_filtrado.empty else 1
 promedio_diario = int(total_filtrado / max(dias_con_gasto, 1))
 
-# Comparación con mes anterior
 total_mes_anterior = 0
 var_pct_str = "0.0%"
 if not df_gastos.empty:
@@ -277,7 +273,6 @@ if not df_gastos.empty:
                 signo = "+" if diff > 0 else ""
                 var_pct_str = f"{signo}{diff:.1f}% vs {mes_ant}"
 
-# Porcentaje de presupuesto consumido
 limite_pres = st.session_state["presupuesto_mensual"]
 pct_presupuesto = min(int((total_filtrado / max(limite_pres, 1)) * 100), 100)
 color_pres = "#10b981" if pct_presupuesto < 75 else ("#f59e0b" if pct_presupuesto < 95 else "#ef4444")
@@ -360,7 +355,6 @@ with tab_nuevo:
 
         if btn_guardar:
             if monto_g > 0 and descripcion_g.strip():
-                # Estructuración segura para persistencia sin alterar el esquema de Supabase
                 detalles_extra = []
                 if forma_pago_g:
                     detalles_extra.append(f"Pago: {forma_pago_g}")
@@ -389,7 +383,7 @@ with tab_nuevo:
                 st.warning("Ingrese un monto mayor a 0 y un concepto representativo.")
 
 # -------------------------------------------------------------------------
-# TAB 2: HISTORIAL Y REPORTES EXCEL / PDF
+# TAB 2: HISTORIAL Y REPORTES EXCEL / PDF (ESTÁNDAR AGL STORE)
 # -------------------------------------------------------------------------
 with tab_historial:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -406,7 +400,7 @@ with tab_historial:
         if "monto" in df_visual.columns:
             df_visual["MONTO (GS.)"] = df_visual["monto"].apply(formato_gs)
 
-        # 1. Exportación Excel enriquecida
+        # 1. Exportación Excel (.xlsx)
         buf = io.BytesIO()
         with pd.ExcelWriter(buf, engine='openpyxl') as writer:
             df_visual.to_excel(writer, index=False, sheet_name='Gastos_Personales')
@@ -421,63 +415,180 @@ with tab_historial:
                 use_container_width=True
             )
 
-        # 2. Exportación PDF Imprimible
-        filas_html = ""
-        for _, f in df_visual.iterrows():
-            filas_html += f"""
-            <tr>
-                <td>{f.get('id', '')}</td>
-                <td>{f.get('fecha', '')}</td>
-                <td><strong>{f.get('categoria', '')}</strong></td>
-                <td>{f.get('descripcion', '')}</td>
-                <td style='text-align: right; font-weight: bold;'>{f.get('MONTO (GS.)', '')}</td>
-            </tr>
-            """
-            
-        html_reporte = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <title>Reporte de Gastos Personales - PROYECTO X</title>
-            <style>
-                body {{ font-family: 'Inter', Arial, sans-serif; margin: 30px; color: #0f172a; }}
-                h2 {{ color: #0f172a; margin-bottom: 4px; font-size: 20px; }}
-                p {{ color: #64748b; font-size: 12px; margin-top: 0; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }}
-                th, td {{ border: 1px solid #cbd5e1; padding: 9px 12px; text-align: left; }}
-                th {{ background-color: #0f172a; color: #ffffff; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }}
-                tr:nth-child(even) {{ background-color: #f8fafc; }}
-                @media print {{
-                    .no-print {{ display: none !important; }}
-                    body {{ margin: 0; }}
-                }}
-            </style>
-        </head>
-        <body onload="window.print()">
-            <div class="no-print" style="margin-bottom: 20px; background: #e0f2fe; color: #0369a1; padding: 12px; border-radius: 8px; font-size: 12px;">
-                ℹ️ <em>Se abrirá la ventana de impresión. Selecciona <strong>"Guardar como PDF"</strong> para archivarlo.</em>
-            </div>
-            <h2>👤 REPORTE EJECUTIVO DE GASTOS PERSONALES</h2>
-            <p>Período: {filtro_periodo} | Categoría: {filtro_cat} | Total Auditado: {formato_gs(total_filtrado)} | Emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th><th>Fecha</th><th>Categoría</th><th>Descripción & Detalles</th><th>Monto</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filas_html}
-                </tbody>
-            </table>
-        </body>
-        </html>
-        """
-
+        # 2. Exportación PDF Imprimible (Diseño Oficial AGL STORE)
         with col_t3:
+            fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
+            df_impresion = df_filtrado.sort_values(by="id", ascending=True) if "id" in df_filtrado.columns else df_filtrado
+
+            calc_promedio = int(total_filtrado / max(cant_movimientos, 1))
+
+            filas_html = ""
+            for _, f in df_impresion.iterrows():
+                m_val = f.get('monto_num', f.get('monto', 0))
+                filas_html += f"""
+                <tr>
+                    <td style='text-align: center; color: #000000;'>{f.get('id', '')}</td>
+                    <td style='text-align: center; color: #000000;'>{f.get('fecha', '')}</td>
+                    <td style='color: #000000; font-weight: 600;'>{f.get('categoria', '')}</td>
+                    <td style='color: #000000;'>{f.get('descripcion', '')}</td>
+                    <td style='text-align: right; font-weight: bold; color: #000000;'>{formato_gs(m_val)}</td>
+                </tr>
+                """
+
+            html_reporte = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>AGL STORE - Gastos Personales</title>
+                <style>
+                    @page {{
+                        size: auto;
+                        margin: 0;
+                    }}
+                    body {{
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                        margin: 0;
+                        padding-top: 1cm;
+                        padding-right: 1cm;
+                        padding-bottom: 1cm;
+                        padding-left: 2cm;
+                        color: #000000;
+                        background: #ffffff;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }}
+                    .header {{
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        border-bottom: 2px solid #000000;
+                        padding-bottom: 8px;
+                        margin-bottom: 14px;
+                    }}
+                    .header h1 {{
+                        margin: 0;
+                        font-size: 22px;
+                        font-weight: 800;
+                        color: #000000;
+                        letter-spacing: -0.02em;
+                    }}
+                    .fecha-emision {{
+                        text-align: right;
+                        font-size: 11px;
+                        color: #000000;
+                    }}
+                    .resumen-cards {{
+                        display: flex;
+                        gap: 12px;
+                        margin-bottom: 14px;
+                    }}
+                    .card {{
+                        flex: 1;
+                        background: #ffffff !important;
+                        border: 1px solid #000000;
+                        border-radius: 4px;
+                        padding: 8px 12px;
+                    }}
+                    .card-label {{
+                        font-size: 9px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        color: #334155;
+                        letter-spacing: 0.05em;
+                    }}
+                    .card-val {{
+                        font-size: 14px;
+                        font-weight: 800;
+                        margin-top: 2px;
+                        color: #000000;
+                    }}
+                    table {{
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 11px;
+                    }}
+                    th, td {{
+                        border: 1px solid #cbd5e1;
+                        padding: 7px 10px;
+                        text-align: left;
+                    }}
+                    th {{
+                        background-color: #e2e8f0 !important;
+                        color: #0f172a !important;
+                        font-size: 9px;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                        font-weight: 700;
+                        text-align: center !important;
+                        border: 1px solid #cbd5e1;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }}
+                    tbody tr:nth-child(odd) {{
+                        background-color: #ffffff !important;
+                    }}
+                    tbody tr:nth-child(even) {{
+                        background-color: #f1f5f9 !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }}
+                    @media print {{
+                        body {{
+                            padding-top: 1cm;
+                            padding-right: 1cm;
+                            padding-bottom: 1cm;
+                            padding-left: 2cm;
+                        }}
+                    }}
+                </style>
+            </head>
+            <body onload="window.print()">
+                <div class="header">
+                    <div>
+                        <h1>AGL STORE</h1>
+                    </div>
+                    <div class="fecha-emision">
+                        Fecha de Emisión: <strong>{fecha_hoy_corte}</strong>
+                    </div>
+                </div>
+
+                <div class="resumen-cards">
+                    <div class="card">
+                        <div class="card-label">Total Egresos ({filtro_periodo})</div>
+                        <div class="card-val">{formato_gs(total_filtrado)}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">Cantidad Asientos</div>
+                        <div class="card-val">{cant_movimientos} registros</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">Promedio por Gasto</div>
+                        <div class="card-val">{formato_gs(calc_promedio)}</div>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 35px; text-align: center;">ID</th>
+                            <th style="width: 85px; text-align: center;">Fecha</th>
+                            <th style="width: 150px; text-align: center;">Categoría</th>
+                            <th style="text-align: center;">Descripción & Observaciones</th>
+                            <th style="width: 100px; text-align: center;">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filas_html}
+                    </tbody>
+                </table>
+            </body>
+            </html>
+            """
+
             st.download_button(
-                label="📕 Imprimir / PDF",
-                data=html_reporte.encode('utf-8'),
+                label="📄 Imprimir / PDF",
+                data=html_reporte,
                 file_name=f"Reporte_Gastos_{filtro_periodo}_{datetime.now().strftime('%Y%m%d')}.html",
                 mime="text/html",
                 use_container_width=True
@@ -569,7 +680,7 @@ with tab_editar:
                 except Exception as e:
                     st.error(f"Error al actualizar: {e}")
 
-            if btn_eliminar:
+            if btn_elim:
                 try:
                     supabase.table("gastos_personales").delete().eq("id", id_sel).execute()
                     st.success("Gasto eliminado correctamente.")
