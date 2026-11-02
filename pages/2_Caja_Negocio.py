@@ -248,7 +248,7 @@ with tab_operacion:
 
         with c3:
             estado_entrega = st.selectbox("Estado del Pedido / Flujo", ["Entregado", "En proceso", "Rechazado"])
-            tipo_pago = st.selectbox("Medio de Pago", ["Efectivo", "Transferencia Bancaria", "Billetera Zimple / Giros", "Tarjeta de Débito/Crédito", "Otro"])
+            tipo_pago = st.selectbox("Medio de Pago", ["Efectivo", "Transferencia Bancaria", "Billetera Digital", "Tarjeta Débito/Crédito", "Otro"])
             comprobante = st.file_uploader("Comprobante / Recibo (Opcional)", type=["png", "jpg", "jpeg", "pdf"])
 
         detalle_op = st.text_input("Detalle Adicional", placeholder="Ej: Entregado por delivery / Pedido confirmado vía Instagram")
@@ -322,183 +322,187 @@ with tab_diario:
                 use_container_width=True
             )
 
-        # 2. Exportación PDF Imprimible (Diseño Limpio Monocromático)
-        fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
+        # 2. Exportación PDF Imprimible (Diseño Oficial AGL STORE)
+        with col_exp2:
+            fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
 
-        # Totales calculados desde el DataFrame
-        m_col = "monto" if "monto" in df_visual.columns else "MONTO"
-        t_col = "tipo" if "tipo" in df_visual.columns else "TIPO"
-        
-        calc_ingresos = int(df_visual[df_visual[t_col] == "Ingreso"][m_col].sum()) if not df_visual.empty and m_col in df_visual.columns else 0
-        calc_egresos = int(df_visual[df_visual[t_col] == "Egreso"][m_col].sum()) if not df_visual.empty and m_col in df_visual.columns else 0
-        calc_saldo = calc_ingresos - calc_egresos
+            # Ordenar de menor a mayor por ID
+            df_impresion = df_tx.sort_values(by="id", ascending=True) if "id" in df_tx.columns else df_tx
 
-        filas_html = ""
-        for _, f in df_visual.iterrows():
-            filas_html += f"""
-            <tr>
-                <td style='text-align: center; color: #000000;'>{f.get('id', '')}</td>
-                <td style='color: #000000;'>{f.get('fecha', '')}</td>
-                <td style='color: #000000; font-weight: 600;'>{f.get('tipo', '')}</td>
-                <td style='color: #000000;'>{f.get('categoria', '')}</td>
-                <td style='text-align: right; font-weight: bold; color: #000000;'>{f.get('MONTO (GS.)', '')}</td>
-                <td style='color: #000000;'>{f.get('descripcion', '')}</td>
-            </tr>
-            """
+            m_col = "monto_num" if "monto_num" in df_impresion.columns else "monto"
+            t_col = "tipo" if "tipo" in df_impresion.columns else "TIPO"
 
-        html_reporte = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <title>AGL STORE</title>
-            <style>
-                @page {{
-                    size: auto;
-                    margin: 0;
-                }}
-                body {{
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-                    margin: 0;
-                    padding-top: 1cm;
-                    padding-right: 1cm;
-                    padding-bottom: 1cm;
-                    padding-left: 2cm;
-                    color: #000000;
-                    background: #ffffff;
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                }}
-                .header {{
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    border-bottom: 2px solid #000000;
-                    padding-bottom: 8px;
-                    margin-bottom: 14px;
-                }}
-                .header h1 {{
-                    margin: 0;
-                    font-size: 22px;
-                    font-weight: 800;
-                    color: #000000;
-                    letter-spacing: -0.02em;
-                }}
-                .fecha-emision {{
-                    text-align: right;
-                    font-size: 11px;
-                    color: #000000;
-                }}
-                .resumen-cards {{
-                    display: flex;
-                    gap: 12px;
-                    margin-bottom: 14px;
-                }}
-                .card {{
-                    flex: 1;
-                    background: #ffffff !important;
-                    border: 1px solid #000000;
-                    border-radius: 4px;
-                    padding: 8px 12px;
-                }}
-                .card-label {{
-                    font-size: 9px;
-                    font-weight: 700;
-                    text-transform: uppercase;
-                    color: #334155;
-                    letter-spacing: 0.05em;
-                }}
-                .card-val {{
-                    font-size: 14px;
-                    font-weight: 800;
-                    margin-top: 2px;
-                    color: #000000;
-                }}
-                table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    font-size: 11px;
-                }}
-                th, td {{
-                    border: 1px solid #cbd5e1;
-                    padding: 7px 10px;
-                    text-align: left;
-                }}
-                th {{
-                    background-color: #e2e8f0 !important;
-                    color: #0f172a !important;
-                    font-size: 9px;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                    font-weight: 700;
-                    text-align: center !important;
-                    border: 1px solid #cbd5e1;
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                }}
-                tbody tr:nth-child(odd) {{
-                    background-color: #ffffff !important;
-                }}
-                tbody tr:nth-child(even) {{
-                    background-color: #f1f5f9 !important;
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                }}
-                @media print {{
+            calc_ingresos = int(df_impresion[df_impresion[t_col] == "Ingreso"][m_col].sum()) if m_col in df_impresion.columns else 0
+            calc_egresos = int(df_impresion[df_impresion[t_col] == "Egreso"][m_col].sum()) if m_col in df_impresion.columns else 0
+            calc_saldo = calc_ingresos - calc_egresos
+
+            filas_html = ""
+            for _, f in df_impresion.iterrows():
+                m_val = f.get('monto', 0)
+                color_tipo = "#16a34a" if f.get('tipo', '') == "Ingreso" else "#dc2626"
+                filas_html += f"""
+                <tr>
+                    <td style='text-align: center; color: #000000;'>{f.get('id', '')}</td>
+                    <td style='text-align: center; color: #000000;'>{f.get('fecha', '')}</td>
+                    <td style='text-align: center; color: {color_tipo}; font-weight: 700;'>{f.get('tipo', '')}</td>
+                    <td style='color: #000000;'>{f.get('categoria', '')}</td>
+                    <td style='text-align: right; font-weight: bold; color: #000000;'>{formato_gs(m_val)}</td>
+                    <td style='color: #000000;'>{f.get('descripcion', '')}</td>
+                </tr>
+                """
+
+            html_reporte = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>AGL STORE - Caja de Negocio</title>
+                <style>
+                    @page {{
+                        size: auto;
+                        margin: 0;
+                    }}
                     body {{
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                        margin: 0;
                         padding-top: 1cm;
                         padding-right: 1cm;
                         padding-bottom: 1cm;
                         padding-left: 2cm;
+                        color: #000000;
+                        background: #ffffff;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }}
-                }}
-            </style>
-        </head>
-        <body onload="window.print()">
-            <div class="header">
-                <div>
-                    <h1>AGL STORE</h1>
+                    .header {{
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        border-bottom: 2px solid #000000;
+                        padding-bottom: 8px;
+                        margin-bottom: 14px;
+                    }}
+                    .header h1 {{
+                        margin: 0;
+                        font-size: 22px;
+                        font-weight: 800;
+                        color: #000000;
+                        letter-spacing: -0.02em;
+                    }}
+                    .fecha-emision {{
+                        text-align: right;
+                        font-size: 11px;
+                        color: #000000;
+                    }}
+                    .resumen-cards {{
+                        display: flex;
+                        gap: 12px;
+                        margin-bottom: 14px;
+                    }}
+                    .card {{
+                        flex: 1;
+                        background: #ffffff !important;
+                        border: 1px solid #000000;
+                        border-radius: 4px;
+                        padding: 8px 12px;
+                    }}
+                    .card-label {{
+                        font-size: 9px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        color: #334155;
+                        letter-spacing: 0.05em;
+                    }}
+                    .card-val {{
+                        font-size: 14px;
+                        font-weight: 800;
+                        margin-top: 2px;
+                        color: #000000;
+                    }}
+                    table {{
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 11px;
+                    }}
+                    th, td {{
+                        border: 1px solid #cbd5e1;
+                        padding: 7px 10px;
+                        text-align: left;
+                    }}
+                    th {{
+                        background-color: #e2e8f0 !important;
+                        color: #0f172a !important;
+                        font-size: 9px;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                        font-weight: 700;
+                        text-align: center !important;
+                        border: 1px solid #cbd5e1;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }}
+                    tbody tr:nth-child(odd) {{
+                        background-color: #ffffff !important;
+                    }}
+                    tbody tr:nth-child(even) {{
+                        background-color: #f1f5f9 !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }}
+                    @media print {{
+                        body {{
+                            padding-top: 1cm;
+                            padding-right: 1cm;
+                            padding-bottom: 1cm;
+                            padding-left: 2cm;
+                        }}
+                    }}
+                </style>
+            </head>
+            <body onload="window.print()">
+                <div class="header">
+                    <div>
+                        <h1>AGL STORE</h1>
+                    </div>
+                    <div class="fecha-emision">
+                        Fecha de Emisión: <strong>{fecha_hoy_corte}</strong>
+                    </div>
                 </div>
-                <div class="fecha-emision">
-                    Fecha de Emisión: <strong>{fecha_hoy_corte}</strong>
-                </div>
-            </div>
 
-            <div class="resumen-cards">
-                <div class="card">
-                    <div class="card-label">Ingresos Totales</div>
-                    <div class="card-val">{formato_gs(calc_ingresos)}</div>
+                <div class="resumen-cards">
+                    <div class="card">
+                        <div class="card-label">Ingresos Totales</div>
+                        <div class="card-val">{formato_gs(calc_ingresos)}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">Egresos Totales</div>
+                        <div class="card-val">{formato_gs(calc_egresos)}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">Saldo en Caja</div>
+                        <div class="card-val">{formato_gs(calc_saldo)}</div>
+                    </div>
                 </div>
-                <div class="card">
-                    <div class="card-label">Egresos Totales</div>
-                    <div class="card-val">{formato_gs(calc_egresos)}</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">Saldo en Caja</div>
-                    <div class="card-val">{formato_gs(calc_saldo)}</div>
-                </div>
-            </div>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 35px; text-align: center;">ID</th>
-                        <th style="width: 85px; text-align: center;">Fecha</th>
-                        <th style="width: 70px; text-align: center;">Tipo</th>
-                        <th style="width: 120px; text-align: center;">Categoría</th>
-                        <th style="width: 95px; text-align: center;">Monto</th>
-                        <th style="text-align: center;">Descripción</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filas_html}
-                </tbody>
-            </table>
-        </body>
-        </html>
-        """
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 35px; text-align: center;">ID</th>
+                            <th style="width: 85px; text-align: center;">Fecha</th>
+                            <th style="width: 70px; text-align: center;">Tipo</th>
+                            <th style="width: 120px; text-align: center;">Categoría</th>
+                            <th style="width: 95px; text-align: center;">Monto</th>
+                            <th style="text-align: center;">Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filas_html}
+                    </tbody>
+                </table>
+            </body>
+            </html>
+            """
 
-        with col_exp2:
             st.download_button(
                 label="📄 Imprimir / PDF",
                 data=html_reporte,
