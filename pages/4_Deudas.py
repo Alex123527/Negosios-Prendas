@@ -5,7 +5,7 @@ import io
 from supabase import create_client, Client
 
 st.set_page_config(
-    page_title="Deudas y Cobranzas | PROYECTO X",
+    page_title="Deudas y Cobranzas | AGL STORE",
     page_icon="💳",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -141,6 +141,8 @@ def formato_gs(valor):
     except Exception:
         return "Gs. 0"
 
+# Cargas con Memoria Caché de 60 segundos
+@st.cache_data(ttl=60)
 def cargar_deudas():
     try:
         res = supabase.table("deudas").select("*").order("id", desc=True).execute()
@@ -151,6 +153,7 @@ def cargar_deudas():
         st.error(f"Error al conectar con tabla deudas: {e}")
         return pd.DataFrame()
 
+@st.cache_data(ttl=60)
 def cargar_pedidos():
     try:
         res = supabase.table("pedidos_inventario").select("*").order("id", desc=True).execute()
@@ -175,7 +178,7 @@ st.markdown("""
             💳 Gestión de Deudas y Cuentas por Cobrar
         </h1>
         <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">
-            Supervisión de saldos a favor, compromisos pendientes con talleres/proveedores y liquidación directa en Caja.
+            Supervisión de capital en la calle, compromisos pendientes con talleres y pase contable directo a Caja de Negocio.
         </p>
     </div>
 """, unsafe_allow_html=True)
@@ -331,6 +334,7 @@ with tab_registro:
                         supabase.table("transacciones").insert(transaccion_caja).execute()
                         st.info(f"✅ Se registró automáticamente el {tipo_trans} de {formato_gs(monto_cuenta)} en Caja de Negocio.")
 
+                    st.cache_data.clear()
                     st.success("¡Cuenta asentada exitosamente!")
                     st.rerun()
                 except Exception as e:
@@ -357,6 +361,7 @@ with tab_maestro:
             m_num = pd.to_numeric(df_mostrar["monto_deuda"], errors="coerce").fillna(0)
             df_mostrar["TOTAL (GS.)"] = m_num.apply(formato_gs)
 
+        # 1. Exportación Excel
         buffer_excel = io.BytesIO()
         with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
             df_mostrar.to_excel(writer, index=False, sheet_name='Deudas')
@@ -371,13 +376,16 @@ with tab_maestro:
                 use_container_width=True
             )
 
+        # 2. Exportación PDF Imprimible (AGL STORE)
         with col_btn_exp2:
             fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
             df_impresion = df_deudas.sort_values(by="id", ascending=True) if "id" in df_deudas.columns else df_deudas
 
             calc_monto_total = int(df_deudas["monto_deuda"].sum()) if "monto_deuda" in df_deudas.columns else 0
-            col_saldo = next((c for c in ["saldo", "saldo_pendiente", "pendiente"] if c in df_deudas.columns), None)
-            calc_saldo = int(df_deudas[col_saldo].sum()) if col_saldo else calc_monto_total
+            
+            # Pendiente real
+            df_pend_print = df_deudas[df_deudas.get("estado", "").str.contains("Pendiente|Parcial", case=False, na=False)]
+            calc_saldo = int(pd.to_numeric(df_pend_print.get("monto_deuda", 0), errors="coerce").fillna(0).sum())
 
             filas_html = ""
             for _, f in df_impresion.iterrows():
@@ -448,11 +456,11 @@ with tab_maestro:
                         <div class="card-val">{len(df_deudas)}</div>
                     </div>
                     <div class="card">
-                        <div class="card-label">Monto Global</div>
+                        <div class="card-label">Monto Histórico Total</div>
                         <div class="card-val">{formato_gs(calc_monto_total)}</div>
                     </div>
                     <div class="card">
-                        <div class="card-label">Saldo Pendiente</div>
+                        <div class="card-label">Saldo Pendiente Activo</div>
                         <div class="card-val">{formato_gs(calc_saldo)}</div>
                     </div>
                 </div>
@@ -500,7 +508,7 @@ with tab_vencimientos:
         df_semaforo["venc_date"] = pd.to_datetime(df_semaforo["fecha_vencimiento"], errors="coerce").dt.date
         hoy = datetime.now().date()
 
-        # Filtrar solo cuentas no canceladas
+        # Filtrar solo cuentas pendientes
         df_pend = df_semaforo[~df_semaforo.get("estado", "").str.contains("Cancelado|Pagado", case=False, na=False)].copy()
 
         if not df_pend.empty:
@@ -543,7 +551,7 @@ with tab_vencimientos:
         st.info("Sin registros de deudas para calcular vencimientos.")
 
 # -------------------------------------------------------------------------
-# TAB 4: MODIFICAR / LIQUIDAR CUENTA (CON PASE DIRECTO A CAJA)
+# TAB 4: MODIFICAR / LIQUIDAR CUENTA (CON PASE DIRECTO A CAJA Y CACHÉ)
 # -------------------------------------------------------------------------
 with tab_liquidacion:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -590,31 +598,35 @@ with tab_liquidacion:
         if btn_liquidar_ahora:
             try:
                 tipo_t = "Ingreso" if es_por_cobrar else "Egreso"
-                cat_t = "Cobro de Deuda" if es_por_cobrar else "Proveedores / Costos"
+                categoria_trans = "Cobro de Deuda" if es_por_cobrar else "Proveedores / Costos"
                 desc_t = f"Liquidación Saldo ID #{sel_deuda_id} | {fila_d.get('cliente', '')} | {fila_d.get('concepto', '')} [{medio_cobro_efectivo}]"
                 
+                # 1. Asiento en Caja
                 supabase.table("transacciones").insert({
                     "fecha": str(fecha_cobro_efectivo),
                     "tipo": tipo_t,
-                    "categoria": cat_t,
+                    "categoria": categoria_trans,
                     "monto": int(monto_a_liquidar),
                     "descripcion": desc_t
                 }).execute()
 
+                # 2. Actualización de Deuda
                 if saldo_restante_despues == 0:
                     supabase.table("deudas").update({
                         "estado": "Cancelado / Pagado",
                         "forma_pago": medio_cobro_efectivo
                     }).eq("id", sel_deuda_id).execute()
-                    st.success(f"¡Cuenta #{sel_deuda_id} liquidada al 100%! Se ingresó {formato_gs(monto_a_liquidar)} a Caja de Negocio.")
+                    st.toast(f"✅ ¡Cuenta #{sel_deuda_id} liquidada! Se ingresó {formato_gs(monto_a_liquidar)} a Caja.", icon="💰")
                 else:
                     supabase.table("deudas").update({
                         "monto_deuda": int(saldo_restante_despues),
                         "estado": "Abono Parcial",
                         "forma_pago": medio_cobro_efectivo
                     }).eq("id", sel_deuda_id).execute()
-                    st.success(f"¡Abono de {formato_gs(monto_a_liquidar)} registrado en Caja! El saldo pendiente se actualizó a {formato_gs(saldo_restante_despues)}.")
+                    st.toast(f"✅ Abono de {formato_gs(monto_a_liquidar)} asentado en Caja.", icon="💳")
 
+                # 3. Invalidación de Caché
+                st.cache_data.clear()
                 st.rerun()
             except Exception as e:
                 st.error(f"Error durante el proceso de liquidación: {e}")
@@ -666,7 +678,8 @@ with tab_liquidacion:
                         "estado": "Pendiente"
                     }).eq("id", sel_deuda_id).execute()
 
-                    st.success(f"¡Liquidación anulada! Saldo restaurado a {formato_gs(nuevo_saldo_restaurado)}.")
+                    st.cache_data.clear()
+                    st.toast(f"Liquidación anulada. Saldo restaurado a {formato_gs(nuevo_saldo_restaurado)}.", icon="↩️")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error al revertir la liquidación: {e}")
@@ -716,6 +729,8 @@ with tab_liquidacion:
                         "forma_pago": ed_forma,
                         "fecha_vencimiento": str(ed_venc)
                     }).eq("id", sel_deuda_id).execute()
+                    
+                    st.cache_data.clear()
                     st.success("Cuenta actualizada exitosamente.")
                     st.rerun()
                 except Exception as e:
@@ -724,6 +739,7 @@ with tab_liquidacion:
             if btn_elim:
                 try:
                     supabase.table("deudas").delete().eq("id", sel_deuda_id).execute()
+                    st.cache_data.clear()
                     st.success("Cuenta eliminada de la base de datos.")
                     st.rerun()
                 except Exception as e:
