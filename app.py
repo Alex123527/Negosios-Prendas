@@ -3,14 +3,14 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="PROYECTO X | Financial Intelligence",
+    page_title="AGL STORE | Financial Intelligence",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # =========================================================================
-# SISTEMA DE ESTILOS VISUALES (Paneles anchos + Botones multilínea elegantes)
+# SISTEMA DE ESTILOS VISUALES
 # =========================================================================
 css_estilos = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -24,7 +24,7 @@ html, body, [class*="css"] {
     color: #f8fafc !important;
 }
 
-/* Maximizar ancho útil de los paneles */
+/* Maximizar ancho útil */
 .block-container {
     padding-top: 2rem !important;
     padding-bottom: 3rem !important;
@@ -48,7 +48,7 @@ section[data-testid="stSidebar"] {
     margin-bottom: 20px;
 }
 
-/* Transformar botones centrales en Tarjetas Flotantes Elegantes */
+/* Tarjetas Centrales Clickeables */
 div[data-testid="stColumn"] .stButton > button {
     background: #1e293b !important;
     border: 1px solid #334155 !important;
@@ -60,7 +60,7 @@ div[data-testid="stColumn"] .stButton > button {
     width: 100% !important;
     min-height: 140px !important;
     height: auto !important;
-    white-space: normal !important; /* Permite saltos de línea sin cortar textos */
+    white-space: normal !important;
     line-height: 1.55 !important;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
@@ -72,7 +72,6 @@ div[data-testid="stColumn"] .stButton > button:hover {
     box-shadow: 0 16px 30px -5px rgba(56, 189, 248, 0.22) !important;
 }
 
-/* Estilo del texto interior del botón */
 div[data-testid="stColumn"] .stButton > button div p {
     font-size: 0.88rem !important;
     color: #94a3b8 !important;
@@ -98,7 +97,7 @@ h1, h2, h3, h4 {
     box-shadow: 0 0 0 1px #2563eb !important;
 }
 
-/* Botones regulares (Login y Sidebar) */
+/* Botones regulares */
 .stFormSubmitButton>button, .stSidebar button {
     background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
     color: #ffffff !important;
@@ -135,7 +134,7 @@ if not st.session_state["autenticado"]:
             <span style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.25); padding: 3px 10px; border-radius: 9999px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">
                 Portal Corporativo Seguro
             </span>
-            <h2 style="margin: 12px 0 4px 0; font-size: 1.7rem; color: #ffffff;">PROYECTO X</h2>
+            <h2 style="margin: 12px 0 4px 0; font-size: 1.7rem; color: #ffffff;">AGL STORE</h2>
             <p style="color: #94a3b8; font-size: 0.82rem; margin: 0 0 16px 0;">SISTEMA CENTRAL DE GESTIÓN Y FINANZAS</p>
             <div style="height: 1px; background: #1e293b; margin: 18px 0;"></div>
         </div>
@@ -167,7 +166,7 @@ sidebar_html = """
     <span style="font-size: 0.7rem; font-weight: 700; color: #10b981; letter-spacing: 0.08em; text-transform: uppercase;">
         ● En Línea
     </span>
-    <h3 style="color: #ffffff; margin: 4px 0 0 0; font-size: 1.25rem;">⚡ PROYECTO X</h3>
+    <h3 style="color: #ffffff; margin: 4px 0 0 0; font-size: 1.25rem;">⚡ AGL STORE</h3>
     <p style="color: #94a3b8; font-size: 0.75rem; margin: 0;">Plataforma Cloud Activa</p>
 </div>
 """
@@ -199,7 +198,7 @@ banner_html = """
 st.markdown(banner_html, unsafe_allow_html=True)
 
 # =========================================================================
-# TARJETAS NATIVAS CLICKEABLES (Mantiene sesión activa sin refresco HTTP)
+# TARJETAS NATIVAS CLICKEABLES
 # =========================================================================
 col1, col2 = st.columns(2)
 
