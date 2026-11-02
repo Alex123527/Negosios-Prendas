@@ -1,18 +1,18 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 import io
 from supabase import create_client, Client
 
 st.set_page_config(
-    page_title="Finanzas Generales | PROYECTO X",
+    page_title="Finanzas Generales | AGL STORE",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # =========================================================================
-# SISTEMA DE ESTILOS VISUALES (Inspirado en Canvas UI de Alto Nivel)
+# SISTEMA DE ESTILOS VISUALES
 # =========================================================================
 st.markdown("""
     <style>
@@ -370,7 +370,7 @@ with tab_patrimonio:
         st.bar_chart(df_comparativa, height=280)
 
 # -------------------------------------------------------------------------
-# TAB 4: EXPORTACIÓN DE REPORTES GENERALES
+# TAB 4: EXPORTACIÓN DE REPORTES GENERALES (ESTÁNDAR AGL STORE)
 # -------------------------------------------------------------------------
 with tab_exportar:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -401,78 +401,187 @@ with tab_exportar:
             use_container_width=True
         )
 
-    # 2. Reporte Ejecutivo Imprimible / Guardar como PDF
-    html_ejecutivo = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <title>Reporte Ejecutivo de Finanzas - PROYECTO X</title>
-        <style>
-            body {{ font-family: 'Inter', Arial, sans-serif; margin: 30px; color: #0f172a; }}
-            h1 {{ color: #0f172a; border-bottom: 2px solid #2563eb; padding-bottom: 8px; font-size: 20px; }}
-            h2 {{ color: #1e293b; margin-top: 25px; font-size: 15px; }}
-            p {{ color: #64748b; font-size: 12px; margin-top: 0; }}
-            .metric-card {{ background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; margin-bottom: 12px; }}
-            .metric-title {{ font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; }}
-            .metric-value {{ font-size: 20px; color: #0f172a; font-weight: bold; margin-top: 4px; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }}
-            th, td {{ border: 1px solid #cbd5e1; padding: 9px 12px; text-align: left; }}
-            th {{ background-color: #0f172a; color: white; text-transform: uppercase; font-size: 10px; }}
-            tr:nth-child(even) {{ background-color: #f8fafc; }}
-            @media print {{
-                .no-print {{ display: none !important; }}
-                body {{ margin: 0; }}
-            }}
-        </style>
-    </head>
-    <body onload="window.print()">
-        <div class="no-print" style="margin-bottom: 20px; background: #e0f2fe; padding: 12px; border-radius: 6px; color: #0369a1; font-size: 12px;">
-            ℹ️ <em>Se abrirá automáticamente el cuadro de impresión. Elige la opción <strong>"Guardar como PDF"</strong>.</em>
-        </div>
-        <h1>📊 INFORME EJECUTIVO DE FINANZAS Y RENTABILIDAD</h1>
-        <p>Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
-        
-        <div class="metric-card">
-            <div class="metric-title">Disponible en Caja de Negocio</div>
-            <div class="metric-value">{formato_gs(saldo_caja)}</div>
-        </div>
-        
-        <div class="metric-card">
-            <div class="metric-title">Facturación Total Pedidos</div>
-            <div class="metric-value">{formato_gs(facturacion_pedidos)} ({unidades_totales_pedidas} prendas comercializadas)</div>
-        </div>
-
-        <div class="metric-card">
-            <div class="metric-title">Ganancia Bruta Estimada</div>
-            <div class="metric-value">{formato_gs(ganancia_bruta_pedidos)} (Margen: {margen_bruto_pct}%)</div>
-        </div>
-
-        <div class="metric-card">
-            <div class="metric-title">Capital Pendiente por Cobrar en la Calle</div>
-            <div class="metric-value">{formato_gs(capital_en_calle)}</div>
-        </div>
-
-        <h2>Resumen de Separación Patrimonial</h2>
-        <table>
-            <thead>
-                <tr><th>Concepto</th><th>Monto Acumulado (Gs.)</th></tr>
-            </thead>
-            <tbody>
-                <tr><td>Ganancia Bruta Negocio</td><td><strong>{formato_gs(ganancia_bruta_pedidos)}</strong></td></tr>
-                <tr><td>Total Gastos Personales Retirados</td><td><strong>{formato_gs(total_gastos_personales)}</strong></td></tr>
-                <tr><td>Excedente / Margen de Seguridad</td><td><strong>{formato_gs(ganancia_bruta_pedidos - total_gastos_personales)}</strong></td></tr>
-            </tbody>
-        </table>
-    </body>
-    </html>
-    """
-
+    # 2. Reporte Ejecutivo Imprimible / Guardar como PDF (Plantilla AGL STORE)
     with c_exp2:
+        fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
+        margen_seguridad = ganancia_bruta_pedidos - total_gastos_personales
+        color_seguridad = "#16a34a" if margen_seguridad >= 0 else "#dc2626"
+
+        html_ejecutivo = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>AGL STORE - Balance General</title>
+            <style>
+                @page {{
+                    size: auto;
+                    margin: 0;
+                }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                    margin: 0;
+                    padding-top: 1cm;
+                    padding-right: 1cm;
+                    padding-bottom: 1cm;
+                    padding-left: 2cm;
+                    color: #000000;
+                    background: #ffffff;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }}
+                .header {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 2px solid #000000;
+                    padding-bottom: 8px;
+                    margin-bottom: 14px;
+                }}
+                .header h1 {{
+                    margin: 0;
+                    font-size: 22px;
+                    font-weight: 800;
+                    color: #000000;
+                    letter-spacing: -0.02em;
+                }}
+                .fecha-emision {{
+                    text-align: right;
+                    font-size: 11px;
+                    color: #000000;
+                }}
+                .resumen-cards {{
+                    display: flex;
+                    gap: 12px;
+                    margin-bottom: 14px;
+                }}
+                .card {{
+                    flex: 1;
+                    background: #ffffff !important;
+                    border: 1px solid #000000;
+                    border-radius: 4px;
+                    padding: 8px 12px;
+                }}
+                .card-label {{
+                    font-size: 9px;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    color: #334155;
+                    letter-spacing: 0.05em;
+                }}
+                .card-val {{
+                    font-size: 14px;
+                    font-weight: 800;
+                    margin-top: 2px;
+                    color: #000000;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 11px;
+                    margin-top: 10px;
+                }}
+                th, td {{
+                    border: 1px solid #cbd5e1;
+                    padding: 8px 10px;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #e2e8f0 !important;
+                    color: #0f172a !important;
+                    font-size: 9px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    font-weight: 700;
+                    text-align: left;
+                    border: 1px solid #cbd5e1;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }}
+                tbody tr:nth-child(odd) {{
+                    background-color: #ffffff !important;
+                }}
+                tbody tr:nth-child(even) {{
+                    background-color: #f1f5f9 !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }}
+                @media print {{
+                    body {{
+                        padding-top: 1cm;
+                        padding-right: 1cm;
+                        padding-bottom: 1cm;
+                        padding-left: 2cm;
+                    }}
+                }}
+            </style>
+        </head>
+        <body onload="window.print()">
+            <div class="header">
+                <div>
+                    <h1>AGL STORE</h1>
+                </div>
+                <div class="fecha-emision">
+                    Fecha de Emisión: <strong>{fecha_hoy_corte}</strong>
+                </div>
+            </div>
+
+            <div class="resumen-cards">
+                <div class="card">
+                    <div class="card-label">Caja Disponible</div>
+                    <div class="card-val">{formato_gs(saldo_caja)}</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Facturación Pedidos</div>
+                    <div class="card-val">{formato_gs(facturacion_pedidos)}</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Ganancia Bruta</div>
+                    <div class="card-val">{formato_gs(ganancia_bruta_pedidos)}</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Capital en la Calle</div>
+                    <div class="card-val">{formato_gs(capital_en_calle)}</div>
+                </div>
+            </div>
+
+            <h3 style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; margin: 18px 0 6px 0; color: #000000;">
+                Auditoría y Separación Patrimonial
+            </h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Concepto Financiero</th>
+                        <th style="width: 140px; text-align: right;">Monto Acumulado (Gs.)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Ganancia Bruta Generada por el Negocio</td>
+                        <td style="text-align: right; font-weight: bold; color: #000000;">{formato_gs(ganancia_bruta_pedidos)}</td>
+                    </tr>
+                    <tr>
+                        <td>Total Gastos Personales Retirados</td>
+                        <td style="text-align: right; font-weight: bold; color: #dc2626;">{formato_gs(total_gastos_personales)}</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700;">Margen de Seguridad / Excedente Patrimonial</td>
+                        <td style="text-align: right; font-weight: 800; color: {color_seguridad};">{formato_gs(margen_seguridad)}</td>
+                    </tr>
+                    <tr>
+                        <td>Patrimonio Líquido Proyectado (Caja + Cuentas por Cobrar)</td>
+                        <td style="text-align: right; font-weight: bold; color: #000000;">{formato_gs(saldo_caja + capital_en_calle)}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </body>
+        </html>
+        """
+
         st.download_button(
-            label="📕 Descargar Reporte Ejecutivo en PDF",
-            data=html_ejecutivo.encode('utf-8'),
-            file_name=f"Reporte_Ejecutivo_{datetime.now().strftime('%Y%m%d')}.html",
+            label="📄 Imprimir / PDF",
+            data=html_ejecutivo,
+            file_name=f"Reporte_Finanzas_{datetime.now().strftime('%Y%m%d')}.html",
             mime="text/html",
             use_container_width=True
         )
