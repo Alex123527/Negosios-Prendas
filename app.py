@@ -198,7 +198,7 @@ banner_html = """
 st.markdown(banner_html, unsafe_allow_html=True)
 
 # =========================================================================
-# TARJETAS NATIVAS CLICKEABLES (ORDEN DEL MENÚ LATERAL)
+# TARJETAS NATIVAS CLICKEABLES (ORDENADAS DE 1 A 5 SIN DUPLICADOS)
 # =========================================================================
 col1, col2 = st.columns(2)
 
@@ -206,7 +206,7 @@ with col1:
     btn_gastos = st.button(
         "👤 **1. GASTOS PERSONALES**  \n\n"
         "Control independiente de salidas privadas por categoría (supermercado, combustible, servicios) para blindar y proteger el capital de giro.",
-        key="card_gastos",
+        key="card_btn_gastos",
         use_container_width=True
     )
     if btn_gastos:
@@ -217,7 +217,7 @@ with col1:
     btn_caja = st.button(
         "💼 **2. CAJA NEGOCIO**  \n\n"
         "Libro diario de ingresos y egresos comerciales, rendición por clientes, adjuntos de comprobantes y arqueo del saldo neto disponible.",
-        key="card_caja",
+        key="card_btn_caja",
         use_container_width=True
     )
     if btn_caja:
@@ -228,7 +228,7 @@ with col1:
     btn_pedidos = st.button(
         "🏷️ **3. PEDIDOS PRECIOS**  \n\n"
         "Control de catálogo de prendas, registro por talle, fletes con transportadoras, calculadora de márgenes comerciales y exportación en Excel y PDF.",
-        key="card_pedidos",
+        key="card_btn_pedidos",
         use_container_width=True
     )
     if btn_pedidos:
@@ -238,7 +238,7 @@ with col2:
     btn_deudas = st.button(
         "💳 **4. DEUDAS**  \n\n"
         "Supervisión del capital en la calle, compromisos con proveedores, semáforo de vencimientos en mora y liquidación directa con pase a caja.",
-        key="card_deudas",
+        key="card_btn_deudas",
         use_container_width=True
     )
     if btn_deudas:
@@ -249,28 +249,7 @@ with col2:
     btn_finanzas = st.button(
         "📈 **5. FINANZAS GENERALES**  \n\n"
         "Consolidación financiera ejecutiva, balance integral entre negocio y retiros personales, rentabilidad por prenda y descarga de libros multi-hoja en Excel.",
-        key="card_finanzas",
-        use_container_width=True
-    )
-    if btn_finanzas:
-        st.switch_page("pages/5_Finanzas_Generales.py")
-
-with col2:
-    btn_deudas = st.button(
-        "💳 **DEUDAS Y CUENTAS POR COBRAR**  \n\n"
-        "Supervisión del capital en la calle, compromisos con proveedores, semáforo de vencimientos en mora y liquidación directa con pase a caja.",
-        key="card_deudas",
-        use_container_width=True
-    )
-    if btn_deudas:
-        st.switch_page("pages/4_Deudas.py")
-
-    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
-
-    btn_finanzas = st.button(
-        "📈 **FINANZAS GENERALES Y BALANCE**  \n\n"
-        "Consolidación financiera ejecutiva, balance integral entre negocio y retiros personales, rentabilidad por prenda y descarga de libros multi-hoja en Excel.",
-        key="card_finanzas",
+        key="card_btn_finanzas",
         use_container_width=True
     )
     if btn_finanzas:
