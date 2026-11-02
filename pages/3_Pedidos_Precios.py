@@ -1,18 +1,19 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 import io
 from supabase import create_client, Client
 
 st.set_page_config(
-    page_title="Pedidos y Precios | PROYECTO X",
+    page_title="Pedidos y Precios | AGL STORE",
     page_icon="🏷️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # =========================================================================
-# SISTEMA DE ESTILOS PREMIUM (Canvas UI de Alto Nivel)
+# SISTEMA DE ESTILOS PREMIUM
 # =========================================================================
 st.markdown("""
     <style>
@@ -141,7 +142,8 @@ def formato_gs(valor):
     except Exception:
         return "Gs. 0"
 
-# Cargar pedidos
+# Cargar pedidos con Caché de 60 segundos
+@st.cache_data(ttl=60)
 def cargar_pedidos():
     try:
         res = supabase.table("pedidos_inventario").select("*").order("id", desc=True).execute()
@@ -152,7 +154,86 @@ def cargar_pedidos():
         st.error(f"Error al conectar con Supabase: {e}")
         return pd.DataFrame()
 
-df_pedidos = cargar_pedidos()
+df_pedidos_raw = cargar_pedidos()
+
+# =========================================================================
+# MOTOR DE CÁLCULOS FINANCIEROS Y COSTO PROMEDIO PONDERADO (CPP)
+# =========================================================================
+def procesar_finanzas_pedidos(df_in: pd.DataFrame):
+    if df_in.empty:
+        return pd.DataFrame(), {}, {}
+    
+    df = df_in.copy()
+    df["cantidad_n"] = pd.to_numeric(df.get("cantidad", 0), errors="coerce").fillna(0)
+    df["costo_n"] = pd.to_numeric(df.get("costo", 0), errors="coerce").fillna(0)
+    df["precio_n"] = pd.to_numeric(df.get("precio_venta", 0), errors="coerce").fillna(0)
+
+    # 1. Costo Promedio Ponderado (CPP) por modelo de prenda
+    cpp_dict = {}
+    grupos = df.groupby("modelo_prenda")
+    for modelo, g in grupos:
+        total_cant = g["cantidad_n"].sum()
+        if total_cant > 0:
+            cpp_val = (g["cantidad_n"] * g["costo_n"]).sum() / total_cant
+        else:
+            cpp_val = g["costo_n"].mean()
+        cpp_dict[modelo] = round(cpp_val, 2)
+    
+    df["costo_cpp"] = df["modelo_prenda"].map(cpp_dict).fillna(df["costo_n"])
+
+    # 2. Facturación, CMV y Ganancia Bruta
+    df["facturacion_bruta"] = df["cantidad_n"] * df["precio_n"]
+    df["cmv_total"] = df["cantidad_n"] * df["costo_cpp"]
+    df["ganancia_bruta"] = df["facturacion_bruta"] - df["cmv_total"]
+
+    # 3. Recargo sobre Costo (Markup) y Margen sobre Venta
+    df["markup_pct"] = np.where(
+        df["costo_cpp"] > 0,
+        ((df["precio_n"] - df["costo_cpp"]) / df["costo_cpp"]) * 100,
+        0.0
+    ).round(1)
+
+    df["margen_pct"] = np.where(
+        df["facturacion_bruta"] > 0,
+        (df["ganancia_bruta"] / df["facturacion_bruta"]) * 100,
+        0.0
+    ).round(1)
+
+    # 4. Extracción de Gastos Operativos (Fletes asumidos por el negocio en 'canal')
+    def extraer_gasto_flete(canal_str):
+        if pd.isna(canal_str):
+            return 0
+        txt = str(canal_str)
+        if "Negocio (Envío Gratis" in txt and "Flete:" in txt:
+            try:
+                parte = txt.split("Flete:")[1].split("|")[0].replace("Gs.", "").replace(".", "").strip()
+                return int(parte)
+            except Exception:
+                return 0
+        return 0
+
+    df["gastos_operativos"] = df["canal"].apply(extraer_gasto_flete)
+    df["ganancia_operativa"] = df["ganancia_bruta"] - df["gastos_operativos"]
+
+    # Resumen ejecutivo
+    kpis = {
+        "total_unidades": int(df["cantidad_n"].sum()),
+        "facturacion_total": int(df["facturacion_bruta"].sum()),
+        "cmv_total": int(df["cmv_total"].sum()),
+        "ganancia_bruta_total": int(df["ganancia_bruta"].sum()),
+        "gastos_operativos_total": int(df["gastos_operativos"].sum()),
+        "ganancia_operativa_total": int(df["ganancia_operativa"].sum()),
+        "margen_operativo_global": round(
+            (df["ganancia_operativa"].sum() / df["facturacion_bruta"].sum() * 100), 1
+        ) if df["facturacion_bruta"].sum() > 0 else 0.0,
+        "markup_global": round(
+            (df["ganancia_bruta"].sum() / df["cmv_total"].sum() * 100), 1
+        ) if df["cmv_total"].sum() > 0 else 0.0
+    }
+
+    return df, kpis, cpp_dict
+
+df_pedidos, kpi_finanzas, tabla_cpp = procesar_finanzas_pedidos(df_pedidos_raw)
 
 # =========================================================================
 # BANNER PRINCIPAL Y KPIs SUPERIORES
@@ -160,57 +241,54 @@ df_pedidos = cargar_pedidos()
 st.markdown("""
     <div style="background: linear-gradient(135deg, #090d16 0%, #1e293b 100%); padding: 22px 26px; border-radius: 16px; border: 1px solid #334155; margin-bottom: 20px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);">
         <span style="background: rgba(37, 99, 245, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.35); padding: 3px 10px; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;">
-            Módulo Comercial & Gestión de Ventas
+            Módulo Comercial & Finanzas de Catálogo
         </span>
         <h1 style="color: #ffffff; font-size: 1.7rem; font-weight: 800; margin: 8px 0 4px 0; letter-spacing: -0.02em;">
-            🏷️ Pedidos, Catálogo y Fijación de Precios
+            🏷️ Pedidos, Inventario & Análisis de Rentabilidad
         </h1>
         <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">
-            Control de señas, balance de saldos pendientes, fletes y vinculación automática con Caja y Deudas.
+            Valoración por Costo Promedio Ponderado (CPP), discriminación de Markup vs. Margen, CMV y cálculo de utilidad operativa neta.
         </p>
     </div>
 """, unsafe_allow_html=True)
 
-# Cálculos de métricas
-total_articulos = 0
-valor_inventario = 0.0
-pedidos_pendientes = 0
-
-if not df_pedidos.empty:
-    if "cantidad" in df_pedidos.columns:
-        df_pedidos["cantidad_num"] = pd.to_numeric(df_pedidos["cantidad"], errors="coerce").fillna(0)
-        total_articulos = int(df_pedidos["cantidad_num"].sum())
-    
-    if "precio_venta" in df_pedidos.columns and "cantidad_num" in df_pedidos.columns:
-        df_pedidos["precio_num"] = pd.to_numeric(df_pedidos["precio_venta"], errors="coerce").fillna(0)
-        valor_inventario = float((df_pedidos["precio_num"] * df_pedidos["cantidad_num"]).sum())
-        
-    if "estado" in df_pedidos.columns:
-        pedidos_pendientes = int((df_pedidos["estado"].str.contains("Pendiente|Preparación", case=False, na=False)).sum())
-
-col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
+# FILA DE MÉTRICAS KPI (4 tarjetas financieras)
+col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 
 with col_kpi1:
     st.markdown(f"""
         <div class="kpi-card">
-            <div class="kpi-label">📦 Volumen Total Prendas</div>
-            <div class="kpi-val" style="color: #38bdf8;">{total_articulos} <span style="font-size: 0.9rem; font-weight: 500; color: #94a3b8;">uds.</span></div>
+            <div class="kpi-label">🛍️ Facturación Bruta</div>
+            <div class="kpi-val" style="color: #38bdf8;">{formato_gs(kpi_finanzas.get("facturacion_total", 0))}</div>
+            <span style="font-size: 0.75rem; color: #94a3b8;">{kpi_finanzas.get("total_unidades", 0)} prendas comercializadas</span>
         </div>
     """, unsafe_allow_html=True)
 
 with col_kpi2:
     st.markdown(f"""
         <div class="kpi-card">
-            <div class="kpi-label">💎 Valor Facturado / Cartera</div>
-            <div class="kpi-val" style="color: #10b981;">{formato_gs(valor_inventario)}</div>
+            <div class="kpi-label">📦 CMV (Costo Mercadería)</div>
+            <div class="kpi-val" style="color: #ef4444;">{formato_gs(kpi_finanzas.get("cmv_total", 0))}</div>
+            <span style="font-size: 0.75rem; color: #94a3b8;">Valuado con CPP</span>
         </div>
     """, unsafe_allow_html=True)
 
 with col_kpi3:
     st.markdown(f"""
         <div class="kpi-card">
-            <div class="kpi-label">⏳ Pedidos en Curso / Espera</div>
-            <div class="kpi-val" style="color: #f59e0b;">{pedidos_pendientes} <span style="font-size: 0.9rem; font-weight: 500; color: #94a3b8;">pedidos</span></div>
+            <div class="kpi-label">✨ Ganancia Bruta</div>
+            <div class="kpi-val" style="color: #818cf8;">{formato_gs(kpi_finanzas.get("ganancia_bruta_total", 0))}</div>
+            <span style="font-size: 0.75rem; color: #94a3b8;">Recargo (Markup): <strong>{kpi_finanzas.get("markup_global", 0)}%</strong></span>
+        </div>
+    """, unsafe_allow_html=True)
+
+with col_kpi4:
+    color_op = "#10b981" if kpi_finanzas.get("ganancia_operativa_total", 0) >= 0 else "#ef4444"
+    st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">💎 Ganancia Operativa</div>
+            <div class="kpi-val" style="color: {color_op};">{formato_gs(kpi_finanzas.get("ganancia_operativa_total", 0))}</div>
+            <span style="font-size: 0.75rem; color: #94a3b8;">Margen Neto: <strong>{kpi_finanzas.get("margen_operativo_global", 0)}%</strong></span>
         </div>
     """, unsafe_allow_html=True)
 
@@ -223,11 +301,11 @@ tab_registro, tab_catalogo, tab_edicion, tab_calculadora = st.tabs([
     "🛍️ Registrar Nuevo Pedido",
     "📋 Catálogo & Reportes (Excel / PDF)",
     "⚙️ Modificar / Eliminar Pedidos",
-    "💡 Rendimiento & Liquidez"
+    "💡 Análisis Financiero (CPP, Markup & Margen)"
 ])
 
 # -------------------------------------------------------------------------
-# TAB 1: REGISTRAR PEDIDO CON SEÑAS Y SALDOS VINCULADOS
+# TAB 1: REGISTRAR PEDIDO CON ANÁLISIS DE COSTO Y SEÑAS
 # -------------------------------------------------------------------------
 with tab_registro:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -236,7 +314,7 @@ with tab_registro:
     with c1:
         fecha_ped = st.date_input("Fecha de Registro", value=datetime.now())
         cliente_ped = st.text_input("Cliente / Contacto", placeholder="Ej: María González (0981xxxxxx)")
-        modelo_ped = st.text_input("Modelo de Prenda / Calzado", placeholder="Ej: Championes Urbanos, Calza Lycra...")
+        modelo_ped = st.text_input("Modelo de Prenda / Calzado", placeholder="Ej: Calza Lycra Sport, Jogger...")
         
         categorias_lista = ["Calzados", "Remeras", "Pantalones / Jeans", "Calzas / Leggins", "Buzos / Hoodies", "Camperas", "Shorts", "Accesorios", "Otros"]
         cat_ped = st.selectbox("Categoría", categorias_lista)
@@ -252,15 +330,34 @@ with tab_registro:
 
     with c2:
         cant_ped = st.number_input("Cantidad de Unidades", min_value=1, value=1, step=1)
-        costo_unit = st.number_input("Costo Unitario Prenda (Gs.)", min_value=0, value=35000, step=5000, format="%d")
-        margen_pct = st.slider("Margen Deseado (%)", min_value=5, max_value=250, value=60, step=5)
         
-        precio_sugerido = int(round(costo_unit * (1 + margen_pct / 100)))
-        precio_final = st.number_input("Precio de Venta Unitario (Gs.)", min_value=0, value=precio_sugerido, step=5000, format="%d")
+        # Sugerir CPP si el modelo ya existe en la base
+        cpp_existente = tabla_cpp.get(modelo_ped.strip(), 35000) if modelo_ped.strip() in tabla_cpp else 35000
+        costo_unit = st.number_input(
+            "Precio de Costo Unitario (Gs.)", 
+            min_value=0, 
+            value=int(cpp_existente), 
+            step=5000, 
+            format="%d",
+            help="Costo de confección o compra del lote actual."
+        )
+        
+        # Diferenciador: Markup vs Margen
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            recargo_markup = st.slider("Recargo sobre Costo (Markup %)", min_value=5, max_value=250, value=60, step=5)
+            precio_sugerido = int(round(costo_unit * (1 + recargo_markup / 100)))
+        with col_m2:
+            margen_teorico = round((recargo_markup / (100 + recargo_markup)) * 100, 1) if recargo_markup > 0 else 0
+            st.metric("Margen sobre Venta", f"{margen_teorico}%")
+
+        precio_final = st.number_input("Precio de Venta Final (Gs.)", min_value=0, value=precio_sugerido, step=5000, format="%d")
         
         monto_total_pedido = int(cant_ped * precio_final)
-        st.text_input("Total Pactado del Pedido (Gs.)", value=formato_gs(monto_total_pedido), disabled=True)
+        cmv_pedido_estimado = int(cant_ped * costo_unit)
+        ganancia_bruta_est = monto_total_pedido - cmv_pedido_estimado
         
+        st.caption(f"Venta: **{formato_gs(monto_total_pedido)}** | CMV: **{formato_gs(cmv_pedido_estimado)}** | Ganancia Bruta: **{formato_gs(ganancia_bruta_est)}**")
         estado_ped = st.selectbox("Estado del Pedido", ["Pendiente", "En Preparación", "En Camino / Enviado", "Entregado / Pagado", "Cancelado"])
 
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -288,7 +385,7 @@ with tab_registro:
             </div>
         """, unsafe_allow_html=True)
 
-    # SECCIÓN: LOGÍSTICA Y ENVÍOS
+    # SECCIÓN: LOGÍSTICA Y ENVÍOS (GASTOS OPERATIVOS)
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     st.markdown("""
         <div style="background-color: #0b1329; border: 1px solid #1e293b; padding: 14px 18px; border-radius: 12px; margin-bottom: 15px;">
@@ -313,7 +410,7 @@ with tab_registro:
         if modelo_ped.strip() and cliente_ped.strip():
             nombre_doc = comprobante_ped.name if comprobante_ped is not None else ""
             
-            info_canal = f"{canal_ped} | Seña: {formato_gs(monto_sena)} ({medio_pago_seña}) | Saldo: {formato_gs(saldo_pendiente)} | Envio: {empresa_envio} ({quien_paga_envio})"
+            info_canal = f"{canal_ped} | Seña: {formato_gs(monto_sena)} ({medio_pago_seña}) | Saldo: {formato_gs(saldo_pendiente)} | Envio: {empresa_envio} ({quien_paga_envio}) | Flete: {costo_envio}"
             if nombre_doc:
                 info_canal += f" | Doc: {nombre_doc}"
 
@@ -325,7 +422,7 @@ with tab_registro:
                 "talle": talle_ped,
                 "cantidad": int(cant_ped),
                 "costo": int(costo_unit),
-                "margen_ganancia": int(margen_pct),
+                "margen_ganancia": int(recargo_markup),
                 "precio_venta": int(precio_final),
                 "stock_inicial": int(cant_ped),
                 "canal": info_canal,
@@ -336,11 +433,11 @@ with tab_registro:
                 res_ped = supabase.table("pedidos_inventario").insert(nuevo_pedido).execute()
                 pedido_creado_id = res_ped.data[0]["id"] if (res_ped.data and len(res_ped.data) > 0) else "N/A"
                 
-                # VINCULACIÓN 1: Pase automático a Caja de Negocio por la seña recibida
+                # VINCULACIÓN 1: Ingreso a Caja si hubo seña
                 if monto_sena > 0:
                     ingreso_caja = {
                         "fecha": str(fecha_ped),
-                        "tip # VINCo": "Ingreso",
+                        "tipo": "Ingreso",
                         "categoria": "Ventas de Prendas",
                         "monto": int(monto_sena),
                         "descripcion": f"Seña Pedido #{pedido_creado_id} | {modelo_ped.strip()} ({cliente_ped.strip()}) [{medio_pago_seña}]"
@@ -348,11 +445,9 @@ with tab_registro:
                     supabase.table("transacciones").insert(ingreso_caja).execute()
                     st.toast(f"✅ Caja de Negocio: Seña de {formato_gs(monto_sena)} ingresada.")
 
-                # VINCULACIÓN 2: Pase a Cuentas por Cobrar con todos los campos requeridos
+                # VINCULACIÓN 2: Cuentas por Cobrar (Deudas) si hay saldo
                 if saldo_pendiente > 0:
-                    # Fecha de vencimiento tentativa: 15 días posteriores al pedido
                     fecha_limite = (datetime.strptime(str(fecha_ped), "%Y-%m-%d").date() + timedelta(days=15))
-                    
                     cuenta_cobrar = {
                         "fecha": str(fecha_ped),
                         "tipo": "Por Cobrar (Cliente me debe)",
@@ -363,12 +458,10 @@ with tab_registro:
                         "fecha_vencimiento": str(fecha_limite),
                         "estado": "Pendiente"
                     }
-                    try:
-                        res_d = supabase.table("deudas").insert(cuenta_cobrar).execute()
-                        st.toast(f"💳 Cuentas por Cobrar: Saldo de {formato_gs(saldo_pendiente)} asentado.")
-                    except Exception as err_deuda:
-                        st.warning(f"Aviso de sincronización en deudas: {err_deuda}")
-                # VINCULACIÓN 3: Flete absorbido por el negocio
+                    supabase.table("deudas").insert(cuenta_cobrar).execute()
+                    st.toast(f"💳 Cuentas por Cobrar: Saldo de {formato_gs(saldo_pendiente)} asentado.")
+
+                # VINCULACIÓN 3: Flete asumido como Egreso en Caja
                 if quien_paga_envio == "Negocio (Envío Gratis / Promoción)" and costo_envio > 0:
                     egreso_envio = {
                         "fecha": str(fecha_ped),
@@ -380,6 +473,7 @@ with tab_registro:
                     supabase.table("transacciones").insert(egreso_envio).execute()
                     st.toast(f"🚚 Flete absorbido de {formato_gs(costo_envio)} registrado en Caja.")
 
+                cargar_pedidos.clear()
                 st.success(f"¡Pedido #{pedido_creado_id} registrado exitosamente con sincronización financiera total!")
                 st.rerun()
             except Exception as e:
@@ -396,37 +490,35 @@ with tab_catalogo:
         col_tit_cat, col_btn_exp1, col_btn_exp2 = st.columns([2, 1, 1])
 
         with col_tit_cat:
-            st.markdown("### 📋 Registro General de Pedidos")
-            st.caption("Visualiza, filtra y descarga los registros oficiales en Excel o PDF listo para imprimir.")
+            st.markdown("### 📋 Registro General de Pedidos & Rentabilidad")
+            st.caption("Visualiza, audita y descarga en Excel o formato imprimible con análisis de márgenes.")
 
-        cols_base = ["id", "fecha", "cliente", "modelo_prenda", "categoria", "talle", "cantidad", "costo", "precio_venta", "canal", "estado"]
-        cols_existentes = [c for c in cols_base if c in df_pedidos.columns]
+        # Tabla visual completa
+        cols_mostrar = [
+            "id", "fecha", "cliente", "modelo_prenda", "talle", 
+            "cantidad_n", "costo_cpp", "precio_n", "facturacion_bruta", 
+            "cmv_total", "ganancia_bruta", "margen_pct", "ganancia_operativa", "estado"
+        ]
         
-        df_mostrar = df_pedidos[cols_existentes].copy()
-        
-        if "cantidad" in df_mostrar.columns and "precio_venta" in df_mostrar.columns:
-            c_num = pd.to_numeric(df_mostrar["cantidad"], errors="coerce").fillna(0)
-            p_num = pd.to_numeric(df_mostrar["precio_venta"], errors="coerce").fillna(0)
-            cost_num = pd.to_numeric(df_mostrar.get("costo", 0), errors="coerce").fillna(0)
-            
-            df_mostrar["TOTAL PACTADO (GS.)"] = (c_num * p_num).apply(formato_gs)
-            df_mostrar["costo"] = cost_num.apply(formato_gs)
-            df_mostrar["precio_venta"] = p_num.apply(formato_gs)
+        df_grid = df_pedidos[cols_mostrar].copy()
+        df_grid.columns = [
+            "ID", "FECHA", "CLIENTE", "PRENDA", "TALLE",
+            "CANT", "COSTO POND. (GS)", "PRECIO (GS)", "FACTURADO (GS)",
+            "CMV (GS)", "GAN. BRUTA (GS)", "MARGEN %", "GAN. OPERATIVA (GS)", "ESTADO"
+        ]
 
-        # Totales para el reporte PDF
-        df_calc = df_pedidos.copy()
-        df_calc["cant_n"] = pd.to_numeric(df_calc.get("cantidad", 0), errors="coerce").fillna(0)
-        df_calc["prec_n"] = pd.to_numeric(df_calc.get("precio_venta", 0), errors="coerce").fillna(0)
-        df_calc["subtotal"] = df_calc["cant_n"] * df_calc["prec_n"]
-
-        total_pendiente = int(df_calc[df_calc["estado"].str.contains("Pendiente", case=False, na=False)]["subtotal"].sum())
-        total_pagado = int(df_calc[df_calc["estado"].str.contains("Entregado / Pagado", case=False, na=False)]["subtotal"].sum())
-        total_general = int(df_calc["subtotal"].sum())
+        df_grid["COSTO POND. (GS)"] = df_grid["COSTO POND. (GS)"].apply(formato_gs)
+        df_grid["PRECIO (GS)"] = df_grid["PRECIO (GS)"].apply(formato_gs)
+        df_grid["FACTURADO (GS)"] = df_grid["FACTURADO (GS)"].apply(formato_gs)
+        df_grid["CMV (GS)"] = df_grid["CMV (GS)"].apply(formato_gs)
+        df_grid["GAN. BRUTA (GS)"] = df_grid["GAN. BRUTA (GS)"].apply(formato_gs)
+        df_grid["GAN. OPERATIVA (GS)"] = df_grid["GAN. OPERATIVA (GS)"].apply(formato_gs)
+        df_grid["MARGEN %"] = df_grid["MARGEN %"].apply(lambda x: f"{x}%")
 
         # 1. Exportación Excel (.xlsx)
         buffer_excel = io.BytesIO()
         with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-            df_mostrar.to_excel(writer, index=False, sheet_name='Pedidos')
+            df_pedidos.to_excel(writer, index=False, sheet_name='Pedidos_Detallados')
         excel_data = buffer_excel.getvalue()
 
         with col_btn_exp1:
@@ -438,199 +530,123 @@ with tab_catalogo:
                 use_container_width=True
             )
 
-        # Exportación PDF Imprimible - Pedidos (Diseño AGL STORE)
-        fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
+        # 2. Exportación PDF Imprimible (AGL STORE)
+        with col_btn_exp2:
+            fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
+            df_impresion = df_pedidos.sort_values(by="id", ascending=True)
 
-        # Cálculos de resumen
-        total_pedidos = len(df_pedidos) if not df_pedidos.empty else 0
-        pendientes = len(df_pedidos[df_pedidos["estado"].str.lower().str.contains("proceso|pendiente", na=False)]) if not df_pedidos.empty and "estado" in df_pedidos.columns else 0
-        total_monto = int(df_pedidos["monto"].sum()) if not df_pedidos.empty and "monto" in df_pedidos.columns else 0
+            filas_html = ""
+            for _, f in df_impresion.iterrows():
+                filas_html += f"""
+                <tr>
+                    <td style='text-align: center; color: #000000;'>{f.get('id', '')}</td>
+                    <td style='color: #000000;'>{f.get('fecha', '')}</td>
+                    <td style='color: #000000; font-weight: 600;'>{f.get('cliente', '')}</td>
+                    <td style='color: #000000;'>{f.get('modelo_prenda', '')} ({f.get('cantidad_n', 0)} uds.)</td>
+                    <td style='text-align: right; color: #000000;'>{formato_gs(f.get('cmv_total', 0))}</td>
+                    <td style='text-align: right; color: #000000;'>{formato_gs(f.get('facturacion_bruta', 0))}</td>
+                    <td style='text-align: right; font-weight: bold; color: #16a34a;'>{formato_gs(f.get('ganancia_operativa', 0))}</td>
+                    <td style='text-align: center; color: #000000;'>{f.get('estado', '')}</td>
+                </tr>
+                """
 
-        # Ordenar de menor a mayor por ID
-        df_impresion = df_pedidos.sort_values(by="id", ascending=True) if "id" in df_pedidos.columns else df_pedidos
+            html_reporte = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>AGL STORE - Pedidos y Rentabilidad</title>
+                <style>
+                    @page {{ size: auto; margin: 0; }}
+                    body {{
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                        margin: 0; padding-top: 1cm; padding-right: 1cm; padding-bottom: 1cm; padding-left: 2cm;
+                        color: #000000; background: #ffffff;
+                        -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+                    }}
+                    .header {{
+                        display: flex; justify-content: space-between; align-items: center;
+                        border-bottom: 2px solid #000000; padding-bottom: 8px; margin-bottom: 14px;
+                    }}
+                    .header h1 {{ margin: 0; font-size: 22px; font-weight: 800; color: #000000; letter-spacing: -0.02em; }}
+                    .fecha-emision {{ text-align: right; font-size: 11px; color: #000000; }}
+                    .resumen-cards {{ display: flex; gap: 12px; margin-bottom: 14px; }}
+                    .card {{
+                        flex: 1; background: #ffffff !important; border: 1px solid #000000;
+                        border-radius: 4px; padding: 8px 12px;
+                    }}
+                    .card-label {{ font-size: 9px; font-weight: 700; text-transform: uppercase; color: #334155; letter-spacing: 0.05em; }}
+                    .card-val {{ font-size: 14px; font-weight: 800; margin-top: 2px; color: #000000; }}
+                    table {{ width: 100%; border-collapse: collapse; font-size: 11px; }}
+                    th, td {{ border: 1px solid #cbd5e1; padding: 7px 10px; text-align: left; }}
+                    th {{
+                        background-color: #e2e8f0 !important; color: #0f172a !important;
+                        font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em;
+                        font-weight: 700; border: 1px solid #cbd5e1;
+                        -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+                    }}
+                    tbody tr:nth-child(odd) {{ background-color: #ffffff !important; }}
+                    tbody tr:nth-child(even) {{
+                        background-color: #f1f5f9 !important;
+                        -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+                    }}
+                </style>
+            </head>
+            <body onload="window.print()">
+                <div class="header">
+                    <div><h1>AGL STORE</h1></div>
+                    <div class="fecha-emision">Fecha de Emisión: <strong>{fecha_hoy_corte}</strong></div>
+                </div>
 
-        filas_html = ""
-        for _, f in df_impresion.iterrows():
-            filas_html += f"""
-            <tr>
-                <td style='text-align: center; color: #000000;'>{f.get('id', '')}</td>
-                <td style='color: #000000;'>{f.get('fecha', '')}</td>
-                <td style='color: #000000; font-weight: 600;'>{f.get('cliente', '')}</td>
-                <td style='color: #000000;'>{f.get('producto', '')}</td>
-                <td style='text-align: center; color: #000000;'>{f.get('estado', '')}</td>
-                <td style='text-align: right; font-weight: bold; color: #000000;'>{formato_gs(f.get('monto', 0))}</td>
-            </tr>
+                <div class="resumen-cards">
+                    <div class="card">
+                        <div class="card-label">Facturación Bruta</div>
+                        <div class="card-val">{formato_gs(kpi_finanzas.get('facturacion_total', 0))}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">CMV (Costo Mercadería)</div>
+                        <div class="card-val">{formato_gs(kpi_finanzas.get('cmv_total', 0))}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">Ganancia Bruta</div>
+                        <div class="card-val">{formato_gs(kpi_finanzas.get('ganancia_bruta_total', 0))}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">Ganancia Operativa Real</div>
+                        <div class="card-val">{formato_gs(kpi_finanzas.get('ganancia_operativa_total', 0))}</div>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 35px; text-align: center;">ID</th>
+                            <th style="width: 75px;">Fecha</th>
+                            <th>Cliente</th>
+                            <th>Prenda</th>
+                            <th style="text-align: right;">CMV</th>
+                            <th style="text-align: right;">Facturación</th>
+                            <th style="text-align: right;">Ganancia Neta</th>
+                            <th style="text-align: center; width: 90px;">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filas_html}
+                    </tbody>
+                </table>
+            </body>
+            </html>
             """
 
-        html_reporte = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <title>AGL STORE - Pedidos</title>
-            <style>
-                @page {{
-                    size: auto;
-                    margin: 0;
-                }}
-                body {{
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-                    margin: 0;
-                    padding-top: 1cm;
-                    padding-right: 1cm;
-                    padding-bottom: 1cm;
-                    padding-left: 2cm;
-                    color: #000000;
-                    background: #ffffff;
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                }}
-                .header {{
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    border-bottom: 2px solid #000000;
-                    padding-bottom: 8px;
-                    margin-bottom: 14px;
-                }}
-                .header h1 {{
-                    margin: 0;
-                    font-size: 22px;
-                    font-weight: 800;
-                    color: #000000;
-                    letter-spacing: -0.02em;
-                }}
-                .fecha-emision {{
-                    text-align: right;
-                    font-size: 11px;
-                    color: #000000;
-                }}
-                .resumen-cards {{
-                    display: flex;
-                    gap: 12px;
-                    margin-bottom: 14px;
-                }}
-                .card {{
-                    flex: 1;
-                    background: #ffffff !important;
-                    border: 1px solid #000000;
-                    border-radius: 4px;
-                    padding: 8px 12px;
-                }}
-                .card-label {{
-                    font-size: 9px;
-                    font-weight: 700;
-                    text-transform: uppercase;
-                    color: #334155;
-                    letter-spacing: 0.05em;
-                }}
-                .card-val {{
-                    font-size: 14px;
-                    font-weight: 800;
-                    margin-top: 2px;
-                    color: #000000;
-                }}
-                table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    font-size: 11px;
-                }}
-                th, td {{
-                    border: 1px solid #cbd5e1;
-                    padding: 7px 10px;
-                    text-align: left;
-                }}
-                th {{
-                    background-color: #e2e8f0 !important;
-                    color: #0f172a !important;
-                    font-size: 9px;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                    font-weight: 700;
-                    text-align: center !important;
-                    border: 1px solid #cbd5e1;
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                }}
-                tbody tr:nth-child(odd) {{
-                    background-color: #ffffff !important;
-                }}
-                tbody tr:nth-child(even) {{
-                    background-color: #f1f5f9 !important;
-                    -webkit-print-color-adjust: exact !important;
-                    print-color-adjust: exact !important;
-                }}
-                @media print {{
-                    body {{
-                        padding-top: 1cm;
-                        padding-right: 1cm;
-                        padding-bottom: 1cm;
-                        padding-left: 2cm;
-                    }}
-                }}
-            </style>
-        </head>
-        <body onload="window.print()">
-            <div class="header">
-                <div>
-                    <h1>AGL STORE</h1>
-                </div>
-                <div class="fecha-emision">
-                    Fecha de Emisión: <strong>{fecha_hoy_corte}</strong>
-                </div>
-            </div>
-
-            <div class="resumen-cards">
-                <div class="card">
-                    <div class="card-label">Total de Pedidos</div>
-                    <div class="card-val">{total_pedidos}</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">En Proceso / Pendientes</div>
-                    <div class="card-val">{pendientes}</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">Monto Global</div>
-                    <div class="card-val">{formato_gs(total_monto)}</div>
-                </div>
-            </div>
-
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 35px; text-align: center;">ID</th>
-                        <th style="width: 85px; text-align: center;">Fecha</th>
-                        <th style="width: 130px; text-align: center;">Cliente</th>
-                        <th style="text-align: center;">Prenda / Detalle</th>
-                        <th style="width: 90px; text-align: center;">Estado</th>
-                        <th style="width: 100px; text-align: center;">Monto</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filas_html}
-                </tbody>
-            </table>
-        </body>
-        </html>
-        """
-
-        with col_btn_exp2:
             st.download_button(
-                label="📕 Imprimir / PDF",
-                data=html_reporte.encode('utf-8'),
+                label="📄 Imprimir / PDF",
+                data=html_reporte,
                 file_name=f"Reporte_Pedidos_{datetime.now().strftime('%Y%m%d')}.html",
                 mime="text/html",
                 use_container_width=True
             )
         
-        st.dataframe(df_mostrar, use_container_width=True)
-
-        st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
-        st.markdown("#### 📊 Consolidado de Unidades por Modelo")
-        if "modelo_prenda" in df_pedidos.columns and "cantidad_num" in df_pedidos.columns:
-            agrupado_prod = df_pedidos.groupby("modelo_prenda")["cantidad_num"].sum().reset_index()
-            agrupado_prod.columns = ["MODELO DE PRENDA", "CANTIDAD TOTAL PEDIDA (UDS)"]
-            st.dataframe(agrupado_prod, use_container_width=True)
+        st.dataframe(df_grid, use_container_width=True)
     else:
         st.info("Sin pedidos cargados actualmente en la base de datos.")
 
@@ -641,7 +657,7 @@ with tab_edicion:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     if not df_pedidos.empty:
         st.markdown("### ⚙️ Modificar o Actualizar Pedido Completo")
-        st.caption("Selecciona cualquier registro para corregir datos, alterar logística o adjuntar comprobantes.")
+        st.caption("Selecciona cualquier registro para corregir costos, estado o precios.")
         
         opciones_pedidos = {
             f"ID #{row['id']} | {row.get('cliente', '')} ({row.get('modelo_prenda', '')})": row['id']
@@ -668,33 +684,21 @@ with tab_edicion:
                 idx_cat = categorias_lista.index(fila_ped.get("categoria")) if fila_ped.get("categoria") in categorias_lista else 0
                 ed_cat = st.selectbox("Categoría", categorias_lista, index=idx_cat)
                 
-                if ed_cat == "Calzados":
-                    talles_ed = [str(i) for i in range(1, 51)]
-                    idx_talle = talles_ed.index(str(fila_ped.get("talle"))) if str(fila_ped.get("talle")) in talles_ed else 39
-                else:
-                    talles_ed = ["XS", "S", "M", "L", "XL", "XXL", "Único", "Surtido"]
-                    idx_talle = talles_ed.index(str(fila_ped.get("talle"))) if str(fila_ped.get("talle")) in talles_ed else 0
-                ed_talle = st.selectbox("Talle / Calce", talles_ed, index=idx_talle)
+                ed_talle = st.text_input("Talle / Calce", value=str(fila_ped.get("talle", "M")))
 
             with e_c2:
-                ed_cant = st.number_input("Cantidad de Unidades", min_value=1, value=int(fila_ped.get("cantidad", 1)), step=1)
-                ed_costo = st.number_input("Costo Unitario (Gs.)", min_value=0, value=int(fila_ped.get("costo", 35000)), step=5000, format="%d")
-                
-                margen_prev = int(fila_ped.get("margen_ganancia", 60)) if fila_ped.get("margen_ganancia") else 60
-                ed_margen = st.slider("Margen (%)", min_value=5, max_value=250, value=min(250, max(5, margen_prev)), step=5)
-                
-                ed_precio = st.number_input("Precio Venta Final (Gs.)", min_value=0, value=int(fila_ped.get("precio_venta", 0)), step=5000, format="%d")
-                st.text_input("Total Recalculado (Gs.)", value=formato_gs(ed_cant * ed_precio), disabled=True)
+                ed_cant = st.number_input("Cantidad de Unidades", min_value=1, value=int(fila_ped.get("cantidad_n", 1)), step=1)
+                ed_costo = st.number_input("Costo Unitario (Gs.)", min_value=0, value=int(fila_ped.get("costo_n", 35000)), step=5000, format="%d")
+                ed_precio = st.number_input("Precio Venta Final (Gs.)", min_value=0, value=int(fila_ped.get("precio_n", 0)), step=5000, format="%d")
                 
                 estados_opts = ["Pendiente", "En Preparación", "En Camino / Enviado", "Entregado / Pagado", "Cancelado"]
                 idx_estado = estados_opts.index(fila_ped["estado"]) if fila_ped.get("estado") in estados_opts else 0
                 ed_estado = st.selectbox("Estado del Pedido", estados_opts, index=idx_estado)
 
-            canal_anterior = str(fila_ped.get("canal", ""))
-            st.text_input("Detalles Financieros / Logísticos Actuales:", value=canal_anterior, disabled=True)
-
             c_bt1, c_bt2 = st.columns(2)
             if c_bt1.form_submit_button("🔄 ACTUALIZAR ESTADO Y DATOS", use_container_width=True):
+                # Recalcular recargo porcentual
+                markup_nuevo = int(round(((ed_precio - ed_costo) / ed_costo * 100))) if ed_costo > 0 else 0
                 datos_actualizados = {
                     "fecha": str(ed_fecha),
                     "cliente": ed_cliente.strip(),
@@ -703,13 +707,14 @@ with tab_edicion:
                     "talle": str(ed_talle),
                     "cantidad": int(ed_cant),
                     "costo": int(ed_costo),
-                    "margen_ganancia": int(ed_margen),
+                    "margen_ganancia": markup_nuevo,
                     "precio_venta": int(ed_precio),
                     "estado": ed_estado
                 }
 
                 try:
                     supabase.table("pedidos_inventario").update(datos_actualizados).eq("id", sel_ped_id).execute()
+                    cargar_pedidos.clear()
                     st.success("¡Pedido actualizado con éxito!")
                     st.rerun()
                 except Exception as e:
@@ -718,6 +723,7 @@ with tab_edicion:
             if c_bt2.form_submit_button("🗑️ ELIMINAR PEDIDO", use_container_width=True):
                 try:
                     supabase.table("pedidos_inventario").delete().eq("id", sel_ped_id).execute()
+                    cargar_pedidos.clear()
                     st.success("Pedido eliminado de la base de datos.")
                     st.rerun()
                 except Exception as e:
@@ -726,79 +732,66 @@ with tab_edicion:
         st.info("No hay pedidos registrados para modificar.")
 
 # -------------------------------------------------------------------------
-# TAB 4: RENDIMIENTO & PROYECCIÓN FINANCIERA
+# TAB 4: ANÁLISIS FINANCIERO (CPP, MARKUP & MARGEN OPERATIVO)
 # -------------------------------------------------------------------------
 with tab_calculadora:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    gasto_envio_negocio = costo_envio if quien_paga_envio == "Negocio (Envío Gratis / Promoción)" else 0
-    ganancia_neta_estimada = (monto_total_pedido - (costo_unit * cant_ped)) - gasto_envio_negocio
-    
-    st.markdown(f"""
-        <div style="background-color: #0b1329; border: 1px solid #1e293b; padding: 18px; border-radius: 12px; margin-bottom: 20px;">
-            <span style="color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">Proyección Unitaria del Pedido Actual</span>
-            <div style="font-size: 1.3rem; font-weight: 800; color: #10b981; margin-top: 5px;">
-                Ganancia Neta Estimada: {formato_gs(ganancia_neta_estimada)}
-            </div>
-            <p style="color: #64748b; font-size: 0.78rem; margin: 4px 0 0 0;">(Descontando costo de mercadería y flete asumido por la empresa)</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown("### 📊 Valuación de Existencias por Costo Promedio Ponderado (CPP)")
+    st.caption("Consolidación contable de costos unitarios de entrada, margen de comercialización y absorción de fletes.")
 
-    hoy = datetime.now().date()
-    hace_7_dias = hoy - timedelta(days=7)
-    primer_dia_mes = hoy.replace(day=1)
-    
-    pedidos_dia = 0
-    pedidos_semana = 0
-    pedidos_mes = 0
-    capital_semana_requerido = 0.0
-    venta_semana_proyectada = 0.0
-    
-    if not df_pedidos.empty and "fecha" in df_pedidos.columns:
-        df_temp = df_pedidos.copy()
-        df_temp["fecha_dt"] = pd.to_datetime(df_temp["fecha"], errors="coerce").dt.date
-        df_temp["cant_n"] = pd.to_numeric(df_temp.get("cantidad", 0), errors="coerce").fillna(0)
-        df_temp["costo_n"] = pd.to_numeric(df_temp.get("costo", 0), errors="coerce").fillna(0)
-        df_temp["precio_n"] = pd.to_numeric(df_temp.get("precio_venta", 0), errors="coerce").fillna(0)
-        
-        df_dia = df_temp[df_temp["fecha_dt"] == hoy]
-        pedidos_dia = int(df_dia["cant_n"].sum())
-        
-        df_sem = df_temp[df_temp["fecha_dt"] >= hace_7_dias]
-        pedidos_semana = int(df_sem["cant_n"].sum())
-        capital_semana_requerido = float((df_sem["cant_n"] * df_sem["costo_n"]).sum())
-        venta_semana_proyectada = float((df_sem["cant_n"] * df_sem["precio_n"]).sum())
-        
-        df_mes = df_temp[df_temp["fecha_dt"] >= primer_dia_mes]
-        pedidos_mes = int(df_mes["cant_n"].sum())
-    
-    st.markdown("#### 📅 Volumen de Pedidos por Período")
-    cd1, cd2, cd3 = st.columns(3)
-    cd1.metric("HOY", f"{pedidos_dia} uds.")
-    cd2.metric("ÚLTIMOS 7 DÍAS", f"{pedidos_semana} uds.")
-    cd3.metric("MES EN CURSO", f"{pedidos_mes} uds.")
-    
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    st.markdown("#### 💼 Capital Operativo y Retorno Semanal")
-    
-    c_cap1, c_cap2, c_cap3 = st.columns(3)
-    with c_cap1:
-        st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-label">Capital Requerido Semanal</div>
-                <div class="kpi-val" style="color: #ef4444;">{formato_gs(capital_semana_requerido)}</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with c_cap2:
-        st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-label">Facturación Semanal Proyectada</div>
-                <div class="kpi-val" style="color: #38bdf8;">{formato_gs(venta_semana_proyectada)}</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with c_cap3:
-        st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-label">Retorno Neto Proyectado</div>
-                <div class="kpi-val" style="color: #10b981;">{formato_gs(venta_semana_proyectada - capital_semana_requerido)}</div>
-            </div>
-        """, unsafe_allow_html=True)
+    if not df_pedidos.empty:
+        # Tabla resumen por modelo
+        resumen_modelo = df_pedidos.groupby("modelo_prenda").agg({
+            "cantidad_n": "sum",
+            "costo_cpp": "first",
+            "facturacion_bruta": "sum",
+            "cmv_total": "sum",
+            "ganancia_bruta": "sum",
+            "gastos_operativos": "sum",
+            "ganancia_operativa": "sum"
+        }).reset_index()
+
+        resumen_modelo["MARKUP REAL %"] = np.where(
+            resumen_modelo["cmv_total"] > 0,
+            ((resumen_modelo["facturacion_bruta"] - resumen_modelo["cmv_total"]) / resumen_modelo["cmv_total"]) * 100,
+            0.0
+        ).round(1)
+
+        resumen_modelo["MARGEN NETO %"] = np.where(
+            resumen_modelo["facturacion_bruta"] > 0,
+            (resumen_modelo["ganancia_operativa"] / resumen_modelo["facturacion_bruta"]) * 100,
+            0.0
+        ).round(1)
+
+        # Formato visual
+        resumen_vis = resumen_modelo.copy()
+        resumen_vis.columns = [
+            "MODELO", "UNIDADES", "CPP UNITARIO", "FACTURACIÓN",
+            "CMV TOTAL", "GAN. BRUTA", "FLETES/ENVÍOS", "GAN. OPERATIVA",
+            "MARKUP %", "MARGEN %"
+        ]
+
+        resumen_vis["CPP UNITARIO"] = resumen_vis["CPP UNITARIO"].apply(formato_gs)
+        resumen_vis["FACTURACIÓN"] = resumen_vis["FACTURACIÓN"].apply(formato_gs)
+        resumen_vis["CMV TOTAL"] = resumen_vis["CMV TOTAL"].apply(formato_gs)
+        resumen_vis["GAN. BRUTA"] = resumen_vis["GAN. BRUTA"].apply(formato_gs)
+        resumen_vis["FLETES/ENVÍOS"] = resumen_vis["FLETES/ENVÍOS"].apply(formato_gs)
+        resumen_vis["GAN. OPERATIVA"] = resumen_vis["GAN. OPERATIVA"].apply(formato_gs)
+        resumen_vis["MARKUP %"] = resumen_vis["MARKUP %"].apply(lambda x: f"{x}%")
+        resumen_vis["MARGEN %"] = resumen_vis["MARGEN %"].apply(lambda x: f"{x}%")
+
+        st.dataframe(resumen_vis, use_container_width=True)
+
+        st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+        st.markdown("#### ⚖️ Comparativa Contable: Facturación vs. CMV vs. Utilidad Neta")
+        df_chart_finanzas = pd.DataFrame({
+            "Concepto": ["Facturación Bruta", "CMV (Costo Stock)", "Ganancia Operativa"],
+            "Monto": [
+                kpi_finanzas.get("facturacion_total", 0),
+                kpi_finanzas.get("cmv_total", 0),
+                kpi_finanzas.get("ganancia_operativa_total", 0)
+            ]
+        }).set_index("Concepto")
+        st.bar_chart(df_chart_finanzas, height=280)
+    else:
+        st.info("Sin datos para generar análisis financiero.")
