@@ -238,7 +238,26 @@ with st.sidebar:
         st.session_state["presupuesto_personal"] = nuevo_tope
         st.rerun()
 
-PRESUPUESTO_MENSUAL = st.session_state["presupuesto_personal"]
+# Inicialización y control del presupuesto mensual
+if "presupuesto_mensual" not in st.session_state:
+    st.session_state["presupuesto_mensual"] = 3500000
+
+with st.sidebar:
+    st.markdown("### ⚙️ Meta Financiera")
+    nuevo_tope = st.number_input(
+        "Presupuesto Mensual (Gs.):",
+        min_value=500000,
+        max_value=50000000,
+        value=int(st.session_state["presupuesto_mensual"]),
+        step=100000,
+        format="%d",
+        key="input_presupuesto_sidebar"
+    )
+    if nuevo_tope != st.session_state["presupuesto_mensual"]:
+        st.session_state["presupuesto_mensual"] = nuevo_tope
+        st.rerun()
+
+PRESUPUESTO_MENSUAL = st.session_state["presupuesto_mensual"]
 
 # Filtros superiores
 if not df_gastos.empty and "periodo" in df_gastos.columns:
@@ -293,7 +312,7 @@ if not df_gastos.empty:
                 signo = "+" if diff > 0 else ""
                 var_pct_str = f"{signo}{diff:.1f}% vs {mes_ant}"
 
-limite_pres = st.session_state["presupuesto_mensual"]
+limite_pres = st.session_state.get("presupuesto_mensual", 3500000)
 pct_presupuesto = min(int((total_filtrado / max(limite_pres, 1)) * 100), 100)
 color_pres = "#10b981" if pct_presupuesto < 75 else ("#f59e0b" if pct_presupuesto < 95 else "#ef4444")
 
