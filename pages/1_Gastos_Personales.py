@@ -267,7 +267,8 @@ if not df_gastos.empty and "periodo" in df_gastos.columns:
     
     col_f1, col_f2, col_f3 = st.columns([1.5, 1.5, 1])
     with col_f1:
-        filtro_periodo = st.selectbox("📅 Período de Análisis:", ["Todos"] + periodos_disponibles)
+        opciones_periodo = ["Todos"] + [p for p in periodos_disponibles if p != "Todos"]
+        filtro_periodo = st.selectbox("📅 Período de Análisis:", opciones_periodo, index=0)
     with col_f2:
         filtro_cat = st.selectbox("🏷️ Filtrar por Categoría:", ["Todas"] + CATEGORIAS_GASTO)
     with col_f3:
@@ -280,10 +281,12 @@ if not df_gastos.empty and "periodo" in df_gastos.columns:
         )
     
     df_filtrado = df_gastos.copy()
-    if filtro_periodo != "Todos":
-        df_filtrado = df_filtrado[df_filtrado["periodo"] == filtro_periodo]
-    if filtro_cat != "Todas":
-        df_filtrado = df_filtrado[df_filtrado["categoria"] == filtro_cat]
+
+if filtro_periodo != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["periodo"] == filtro_periodo]
+
+if filtro_cat != "Todas":
+    df_filtrado = df_filtrado[df_filtrado["categoria"] == filtro_cat]
 else:
     df_filtrado = df_gastos.copy()
     filtro_periodo = "Todos"
