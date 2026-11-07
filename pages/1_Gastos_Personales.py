@@ -217,8 +217,28 @@ st.markdown("""
 
 mes_actual = datetime.now().strftime("%Y-%m")
 
-if "presupuesto_mensual" not in st.session_state:
-    st.session_state["presupuesto_mensual"] = 3500000
+# =========================================================================
+# CONFIGURACIÓN DINÁMICA DE PRESUPUESTO PERSONAL
+# =========================================================================
+if "presupuesto_personal" not in st.session_state:
+    st.session_state["presupuesto_personal"] = 3500000
+
+with st.sidebar:
+    st.markdown("### ⚙️ Meta Financiera")
+    nuevo_tope = st.number_input(
+        "Presupuesto Mensual (Gs.):",
+        min_value=500000,
+        max_value=50000000,
+        value=int(st.session_state["presupuesto_personal"]),
+        step=100000,
+        format="%d",
+        help="Ajusta el límite mensual para evaluar la ejecución presupuestaria en tiempo real."
+    )
+    if nuevo_tope != st.session_state["presupuesto_personal"]:
+        st.session_state["presupuesto_personal"] = nuevo_tope
+        st.rerun()
+
+PRESUPUESTO_MENSUAL = st.session_state["presupuesto_personal"]
 
 # Filtros superiores
 if not df_gastos.empty and "periodo" in df_gastos.columns:
