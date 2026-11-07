@@ -259,34 +259,33 @@ with st.sidebar:
 
 PRESUPUESTO_MENSUAL = st.session_state["presupuesto_mensual"]
 
-# Filtros superiores
+# Inicialización por defecto de las variables de filtro
+filtro_periodo = "Todos"
+filtro_cat = "Todas"
+
+# Filtros superiores interactivos
 if not df_gastos.empty and "periodo" in df_gastos.columns:
-    periodos_disponibles = sorted([p for p in df_gastos["periodo"].dropna().unique()], reverse=True)
-    if mes_actual not in periodos_disponibles:
-        periodos_disponibles.insert(0, mes_actual)
+    periodos_raw = [str(p) for p in df_gastos["periodo"].dropna().unique() if str(p).strip() != ""]
+    opciones_periodo = ["Todos"] + sorted(periodos_raw, reverse=True)
     
-    col_f1, col_f2, col_f3 = st.columns([1.5, 1.5, 1])
+    cats_raw = [str(c) for c in df_gastos["categoria"].dropna().unique() if str(c).strip() != ""] if "categoria" in df_gastos.columns else []
+    opciones_cat = ["Todas"] + sorted(cats_raw)
+
+    col_f1, col_f2 = st.columns(2)
     with col_f1:
-        opciones_periodo = ["Todos"] + [p for p in periodos_disponibles if p != "Todos"]
         filtro_periodo = st.selectbox("📅 Período de Análisis:", opciones_periodo, index=0)
     with col_f2:
-        filtro_cat = st.selectbox("🏷️ Filtrar por Categoría:", ["Todas"] + CATEGORIAS_GASTO)
-    with col_f3:
-        st.session_state["presupuesto_mensual"] = st.number_input(
-            "🎯 Límite Presupuesto (Gs.)",
-            min_value=100000,
-            value=int(st.session_state["presupuesto_mensual"]),
-            step=250000,
-            format="%d"
-        )
-    
-    df_filtrado = df_gastos.copy()
+        filtro_cat = st.selectbox("🏷️ Filtrar por Categoría:", opciones_cat, index=0)
 
-if filtro_periodo != "Todos":
-    df_filtrado = df_filtrado[df_filtrado["periodo"] == filtro_periodo]
+# Aplicación segura de filtros sobre el DataFrame
+df_filtrado = df_gastos.copy()
 
-if filtro_cat != "Todas":
-    df_filtrado = df_filtrado[df_filtrado["categoria"] == filtro_cat]
+if not df_filtrado.empty:
+    if filtro_periodo != "Todos" and "periodo" in df_filtrado.columns:
+        df_filtrado = df_filtrado[df_filtrado["periodo"] == filtro_periodo]
+
+    if filtro_cat != "Todas" and "categoria" in df_filtrado.columns:
+        df_filtrado = df_filtrado[df_filtrado["categoria"] == filtro_cat]
 else:
     df_filtrado = df_gastos.copy()
     filtro_periodo = "Todos"
