@@ -140,7 +140,8 @@ def formato_gs(valor):
     except Exception:
         return "Gs. 0"
 
-# Cargar transacciones desde Supabase
+# Cargar transacciones desde Supabase con caché de 60 segundos
+@st.cache_data(ttl=60)
 def cargar_transacciones():
     try:
         res = supabase.table("transacciones").select("*").order("id", desc=True).execute()
@@ -283,6 +284,7 @@ with tab_operacion:
                 }
                 try:
                     supabase.table("transacciones").insert(nueva_tx).execute()
+                    cargar_transacciones.clear()  # <-- Limpia la caché para ver el nuevo registro de inmediato
                     st.success("Transacción registrada con éxito en Supabase.")
                     st.rerun()
                 except Exception as e:
@@ -587,10 +589,20 @@ with tab_edicion:
                         "descripcion": ed_desc.strip(), 
                         "monto": int(ed_monto)
                     }).eq("id", tx_id_sel).execute()
+                    cargar_transacciones.clear()  # <-- Limpia caché
                     st.success("Operación actualizada en Supabase con éxito.")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error al actualizar: {e}")
+
+            if btn_elim:
+                try:
+                    supabase.table("transacciones").delete().eq("id", tx_id_sel).execute()
+                    cargar_transacciones.clear()  # <-- Limpia caché
+                    st.success("Operación eliminada de Supabase correctamente.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al eliminar: {e}")
 
             if btn_elim:
                 try:
