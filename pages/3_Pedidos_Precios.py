@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import io
+import re
 from supabase import create_client, Client
 
 st.set_page_config(
@@ -58,14 +59,14 @@ st.markdown("""
         transform: translateY(-1px) !important;
     }
     
-    .stTextInput input, .stNumberInput input, .stSelectbox select, .stDateInput input {
+    .stTextInput input, .stNumberInput input, .stSelectbox select, .stDateInput input, .stTextArea textarea {
         background-color: #090d16 !important;
         color: #f1f5f9 !important;
         border: 1px solid #1e293b !important;
         border-radius: 8px !important;
         font-size: 0.85rem !important;
     }
-    .stTextInput input:focus, .stNumberInput input:focus, .stSelectbox select:focus {
+    .stTextInput input:focus, .stNumberInput input:focus, .stSelectbox select:focus, .stTextArea textarea:focus {
         border-color: #2563eb !important;
         box-shadow: 0 0 0 1px #2563eb !important;
     }
@@ -157,7 +158,7 @@ def cargar_pedidos():
 df_pedidos_raw = cargar_pedidos()
 
 # =========================================================================
-# MOTOR DE CÁLCULOS FINANCIEROS Y COSTO PROMEDIO PONDERADO (CPP)
+# MOTOR FINANCIERO Y COSTO PROMEDIO PONDERADO (CPP)
 # =========================================================================
 def procesar_finanzas_pedidos(df_in: pd.DataFrame):
     if df_in.empty:
@@ -199,7 +200,7 @@ def procesar_finanzas_pedidos(df_in: pd.DataFrame):
         0.0
     ).round(1)
 
-    # 4. Extracción de Gastos Operativos (Fletes asumidos por el negocio en 'canal')
+    # 4. Extracción de Gastos de Flete
     def extraer_gasto_flete(canal_str):
         if pd.isna(canal_str):
             return 0
@@ -215,7 +216,7 @@ def procesar_finanzas_pedidos(df_in: pd.DataFrame):
     df["gastos_operativos"] = df["canal"].apply(extraer_gasto_flete)
     df["ganancia_operativa"] = df["ganancia_bruta"] - df["gastos_operativos"]
 
-    # Resumen ejecutivo
+    # Resumen general
     kpis = {
         "total_unidades": int(df["cantidad_n"].sum()),
         "facturacion_total": int(df["facturacion_bruta"].sum()),
@@ -247,12 +248,11 @@ st.markdown("""
             🏷️ Pedidos, Inventario & Análisis de Rentabilidad
         </h1>
         <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">
-            Valoración por Costo Promedio Ponderado (CPP), discriminación de Markup vs. Margen, CMV y cálculo de utilidad operativa neta.
+            Valoración por Costo Promedio Ponderado (CPP), cálculo de CMV, márgenes y vinculación con WhatsApp.
         </p>
     </div>
 """, unsafe_allow_html=True)
 
-# FILA DE MÉTRICAS KPI (4 tarjetas financieras)
 col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 
 with col_kpi1:
@@ -297,7 +297,8 @@ st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 # =========================================================================
 # NAVEGACIÓN POR PESTAÑAS (TABS)
 # =========================================================================
-tab_registro, tab_catalogo, tab_edicion, tab_calculadora = st.tabs([
+tab_whatsapp, tab_registro, tab_catalogo, tab_edicion, tab_calculadora = st.tabs([
+    "📲 Asistente WhatsApp (Copiar & Pegar Express)",
     "🛍️ Registrar Nuevo Pedido",
     "📋 Catálogo & Reportes (Excel / PDF)",
     "⚙️ Modificar / Eliminar Pedidos",
@@ -305,7 +306,196 @@ tab_registro, tab_catalogo, tab_edicion, tab_calculadora = st.tabs([
 ])
 
 # -------------------------------------------------------------------------
-# TAB 1: REGISTRAR PEDIDO CON ANÁLISIS DE COSTO Y SEÑAS
+# TAB 0: ASISTENTE WHATSAPP (SISTEMATIZACIÓN Y AUTOMATIZACIÓN)
+# -------------------------------------------------------------------------
+with tab_whatsapp:
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    
+    col_w1, col_w2 = st.columns(2)
+
+    # 1. GENERADOR DE PUBLICACIONES PARA EL GRUPO DE WHATSAPP
+    with col_w1:
+        st.markdown("""
+            <div style="background-color: #0b1329; border: 1px solid #1e293b; padding: 14px 18px; border-radius: 12px; margin-bottom: 12px;">
+                <span style="color: #22c55e; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
+                    📢 1. Generar Publicación para tu Grupo
+                </span>
+                <p style="color: #94a3b8; font-size: 0.8rem; margin: 4px 0 0 0;">
+                    Ingresá el costo mayorista, aplicá tu margen y obtené el texto formateado con emojis listo para enviar a tus clientes.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        pub_prenda = st.text_input("Nombre de la Prenda", placeholder="Ej: Calza Térmica Lycra Sport", key="w_pub_prenda")
+        pub_categoria = st.selectbox("Categoría", ["Calzas / Leggins", "Remeras", "Pantalones / Jeans", "Calzados", "Buzos / Hoodies", "Camperas", "Shorts", "Accesorios"], key="w_pub_cat")
+        pub_talles = st.text_input("Talles / Colores Disponibles", value="S, M, L, XL | Negro, Azul, Gris", key="w_pub_talles")
+        
+        col_cst, col_mrk = st.columns(2)
+        with col_cst:
+            pub_costo = st.number_input("Costo Mayorista (Gs.)", min_value=0, value=45000, step=5000, format="%d", key="w_pub_costo")
+        with col_mrk:
+            pub_markup = st.slider("Recargo / Ganancia (%)", min_value=10, max_value=50, value=20, step=1, key="w_pub_markup")
+
+        # Cálculo de precio final redondeado a miles
+        precio_calculado = pub_costo * (1 + pub_markup / 100)
+        precio_redondeado = int(round(precio_calculado / 1000) * 1000)
+        ganancia_estimada = precio_redondeado - pub_costo
+
+        st.caption(f"Precio venta: **{formato_gs(precio_redondeado)}** | Ganancia neta: **{formato_gs(ganancia_estimada)}** por unidad.")
+
+        # Plantilla optimizada para WhatsApp
+        texto_whatsapp = f"""✨ *NUEVO INGRESO EN AGL STORE* ✨
+
+🔥 *{pub_prenda.upper() if pub_prenda else 'PRENDA EXCLUSIVA'}*
+🏷️ *Categoría:* {pub_categoria}
+📏 *Talles / Opciones:* {pub_talles}
+
+💎 *Precio Promo:* {formato_gs(precio_redondeado)}
+
+📦 *Envíos a todo el país por AEX / Encomiendas o delivery local.*
+⚡ *¡Escribinos al privado para apartar el tuyo antes de que se agoten!*"""
+
+        st.text_area("📋 Texto listo para copiar a tu grupo de WhatsApp:", value=texto_whatsapp, height=170, key="txt_area_pub")
+        st.info("💡 Consejo: Copiá este texto, pegalo con la foto del mayorista en tu grupo de ventas y no tenés que recalcular nada a mano.")
+
+    # 2. LECTOR RÁPIDO DE PEDIDOS (PARSER DE WHATSAPP)
+    with col_w2:
+        st.markdown("""
+            <div style="background-color: #0b1329; border: 1px solid #1e293b; padding: 14px 18px; border-radius: 12px; margin-bottom: 12px;">
+                <span style="color: #38bdf8; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
+                    📥 2. Cargar Pedido Pegando el Chat
+                </span>
+                <p style="color: #94a3b8; font-size: 0.8rem; margin: 4px 0 0 0;">
+                    Pegá el mensaje de WhatsApp que te mandó el cliente o un resumen rápido para que el sistema complete el formulario solo.
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        chat_pegado = st.text_area(
+            "Pegá el mensaje del cliente aquí:",
+            placeholder="Ejemplo:\nCliente: Natalia Gómez (0983123456)\nPrenda: Calza Lycra Sport M\nCantidad: 2\nPrecio: 65000\nSeña: 50000 Transferencia",
+            height=125,
+            key="w_chat_pegado"
+        )
+
+        # Función de extracción automática de datos con expresiones regulares
+        def parsear_mensaje_whatsapp(texto):
+            cli = ""
+            mod = ""
+            cant = 1
+            prec = 0
+            sena = 0
+
+            lineas = texto.split("\n")
+            for l in lineas:
+                l_lower = l.lower()
+                if any(k in l_lower for k in ["cliente", "nombre"]):
+                    cli = l.split(":")[-1].strip() if ":" in l else l.strip()
+                elif any(k in l_lower for k in ["prenda", "modelo", "producto", "articulo"]):
+                    mod = l.split(":")[-1].strip() if ":" in l else l.strip()
+                elif any(k in l_lower for k in ["cantidad", "cant", "uds"]):
+                    nums = re.findall(r'\d+', l)
+                    if nums: cant = int(nums[0])
+                elif any(k in l_lower for k in ["precio", "monto", "total"]):
+                    limpio = l.replace(".", "").replace(",", "")
+                    nums = re.findall(r'\d+', limpio)
+                    if nums: prec = int(nums[0])
+                elif "seña" in l_lower or "sena" in l_lower:
+                    limpio = l.replace(".", "").replace(",", "")
+                    nums = re.findall(r'\d+', limpio)
+                    if nums: sena = int(nums[0])
+
+            # Si no vino estructurado con etiquetas, inferir inteligentemente
+            if not cli and len(lineas) > 0 and len(lineas[0].strip()) > 3:
+                cli = lineas[0].strip()
+            if not mod and len(lineas) > 1:
+                mod = lineas[1].strip()
+
+            return cli, mod, cant, prec, sena
+
+        c_ext, m_ext, cant_ext, prec_ext, sena_ext = parsear_mensaje_whatsapp(chat_pegado) if chat_pegado.strip() else ("", "", 1, 0, 0)
+
+        with st.form("form_express_whatsapp"):
+            f_cli = st.text_input("Cliente Detectado:", value=c_ext)
+            f_mod = st.text_input("Prenda Detectada:", value=m_ext)
+            
+            c_e1, c_e2, c_e3 = st.columns(3)
+            with c_e1:
+                f_cant = st.number_input("Cantidad:", min_value=1, value=max(1, cant_ext), step=1)
+            with c_e2:
+                # Sugerir costo según CPP si existe, o 35000 por defecto
+                costo_aut = int(tabla_cpp.get(f_mod.strip(), 35000)) if f_mod.strip() in tabla_cpp else 35000
+                f_costo = st.number_input("Costo Unit. (Gs.):", min_value=0, value=costo_aut, step=5000, format="%d")
+            with c_e3:
+                f_prec = st.number_input("Precio Venta (Gs.):", min_value=0, value=int(prec_ext) if prec_ext > 0 else int(costo_aut * 1.2), step=5000, format="%d")
+
+            col_s1, col_s2 = st.columns(2)
+            with col_s1:
+                f_sena = st.number_input("Seña Recibida (Gs.):", min_value=0, value=int(sena_ext), step=5000, format="%d")
+            with col_s2:
+                f_medio = st.selectbox("Medio de Pago Seña:", ["Transferencia SIPAP", "Efectivo", "Billetera Digital", "Sin Seña"])
+
+            btn_asentar_express = st.form_submit_button("⚡ GUARDAR PEDIDO DIRECTO DESDE WHATSAPP", use_container_width=True)
+
+            if btn_asentar_express:
+                if f_cli.strip() and f_mod.strip():
+                    total_pactado = f_cant * f_prec
+                    saldo_pend = max(0, total_pactado - f_sena)
+                    markup_cal = int(round(((f_prec - f_costo) / f_costo * 100))) if f_costo > 0 else 20
+                    
+                    nuevo_ped_wa = {
+                        "fecha": str(datetime.now().date()),
+                        "cliente": f_cli.strip(),
+                        "modelo_prenda": f_mod.strip(),
+                        "categoria": "Calzas / Leggins",
+                        "talle": "Surtido",
+                        "cantidad": int(f_cant),
+                        "costo": int(f_costo),
+                        "margen_ganancia": markup_cal,
+                        "precio_venta": int(f_prec),
+                        "stock_inicial": int(f_cant),
+                        "canal": f"WhatsApp | Seña: {formato_gs(f_sena)} ({f_medio}) | Saldo: {formato_gs(saldo_pend)}",
+                        "estado": "Pendiente"
+                    }
+
+                    try:
+                        res_p = supabase.table("pedidos_inventario").insert(nuevo_ped_wa).execute()
+                        ped_id = res_p.data[0]["id"] if (res_p.data and len(res_p.data) > 0) else "N/A"
+
+                        # Asiento automático en Caja si hubo seña
+                        if f_sena > 0:
+                            supabase.table("transacciones").insert({
+                                "fecha": str(datetime.now().date()),
+                                "tipo": "Ingreso",
+                                "categoria": "Ventas de Prendas",
+                                "monto": int(f_sena),
+                                "descripcion": f"Seña WhatsApp Pedido #{ped_id} | {f_mod.strip()} ({f_cli.strip()}) [{f_medio}]"
+                            }).execute()
+
+                        # Asiento en Deudas si queda saldo
+                        if saldo_pend > 0:
+                            fecha_lim = datetime.now().date() + timedelta(days=15)
+                            supabase.table("deudas").insert({
+                                "fecha": str(datetime.now().date()),
+                                "tipo": "Por Cobrar (Cliente me debe)",
+                                "cliente": f_cli.strip(),
+                                "concepto": f"Saldo Pedido #{ped_id} | {f_mod.strip()} ({f_cant} uds.)",
+                                "monto_deuda": int(saldo_pend),
+                                "forma_pago": f_medio if f_medio != "Sin Seña" else "Efectivo",
+                                "fecha_vencimiento": str(fecha_lim),
+                                "estado": "Pendiente"
+                            }).execute()
+
+                        cargar_pedidos.clear()
+                        st.success(f"¡Pedido #{ped_id} ingresado a Supabase, Caja y Deudas desde WhatsApp!")
+                        st.rerun()
+                    except Exception as err:
+                        st.error(f"Error al registrar pedido: {err}")
+                else:
+                    st.warning("Completá al menos el nombre del cliente y la prenda.")
+
+# -------------------------------------------------------------------------
+# TAB 1: REGISTRAR PEDIDO COMPLETO MANUAL
 # -------------------------------------------------------------------------
 with tab_registro:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
@@ -313,25 +503,24 @@ with tab_registro:
     
     with c1:
         fecha_ped = st.date_input("Fecha de Registro", value=datetime.now())
-        cliente_ped = st.text_input("Cliente / Contacto", placeholder="Ej: María González (0981xxxxxx)")
-        modelo_ped = st.text_input("Modelo de Prenda / Calzado", placeholder="Ej: Calza Lycra Sport, Jogger...")
+        cliente_ped = st.text_input("Cliente / Contacto", placeholder="Ej: María González (0981xxxxxx)", key="reg_cli")
+        modelo_ped = st.text_input("Modelo de Prenda / Calzado", placeholder="Ej: Calza Lycra Sport, Jogger...", key="reg_mod")
         
         categorias_lista = ["Calzados", "Remeras", "Pantalones / Jeans", "Calzas / Leggins", "Buzos / Hoodies", "Camperas", "Shorts", "Accesorios", "Otros"]
-        cat_ped = st.selectbox("Categoría", categorias_lista)
+        cat_ped = st.selectbox("Categoría", categorias_lista, key="reg_cat")
         
         if cat_ped == "Calzados":
             talles_disponibles = [str(i) for i in range(1, 51)]
-            talle_ped = st.selectbox("Calce / Talle", talles_disponibles, index=39)
+            talle_ped = st.selectbox("Calce / Talle", talles_disponibles, index=39, key="reg_talle_calz")
         else:
             talles_disponibles = ["XS", "S", "M", "L", "XL", "XXL", "Único", "Surtido"]
-            talle_ped = st.selectbox("Talle", talles_disponibles, index=2)
+            talle_ped = st.selectbox("Talle", talles_disponibles, index=2, key="reg_talle_ind")
             
-        canal_ped = st.selectbox("Canal de Venta", ["WhatsApp", "Instagram", "Tienda Física", "Feria", "Otro"])
+        canal_ped = st.selectbox("Canal de Venta", ["WhatsApp", "Instagram", "Tienda Física", "Feria", "Otro"], key="reg_canal")
 
     with c2:
-        cant_ped = st.number_input("Cantidad de Unidades", min_value=1, value=1, step=1)
+        cant_ped = st.number_input("Cantidad de Unidades", min_value=1, value=1, step=1, key="reg_cant")
         
-        # Sugerir CPP si el modelo ya existe en la base
         cpp_existente = tabla_cpp.get(modelo_ped.strip(), 35000) if modelo_ped.strip() in tabla_cpp else 35000
         costo_unit = st.number_input(
             "Precio de Costo Unitario (Gs.)", 
@@ -339,26 +528,25 @@ with tab_registro:
             value=int(cpp_existente), 
             step=5000, 
             format="%d",
-            help="Costo de confección o compra del lote actual."
+            key="reg_costo"
         )
         
-        # Diferenciador: Markup vs Margen
         col_m1, col_m2 = st.columns(2)
         with col_m1:
-            recargo_markup = st.slider("Recargo sobre Costo (Markup %)", min_value=5, max_value=250, value=60, step=5)
+            recargo_markup = st.slider("Recargo sobre Costo (Markup %)", min_value=5, max_value=250, value=20, step=5, key="reg_markup")
             precio_sugerido = int(round(costo_unit * (1 + recargo_markup / 100)))
         with col_m2:
             margen_teorico = round((recargo_markup / (100 + recargo_markup)) * 100, 1) if recargo_markup > 0 else 0
             st.metric("Margen sobre Venta", f"{margen_teorico}%")
 
-        precio_final = st.number_input("Precio de Venta Final (Gs.)", min_value=0, value=precio_sugerido, step=5000, format="%d")
+        precio_final = st.number_input("Precio de Venta Final (Gs.)", min_value=0, value=precio_sugerido, step=5000, format="%d", key="reg_precio")
         
         monto_total_pedido = int(cant_ped * precio_final)
         cmv_pedido_estimado = int(cant_ped * costo_unit)
         ganancia_bruta_est = monto_total_pedido - cmv_pedido_estimado
         
         st.caption(f"Venta: **{formato_gs(monto_total_pedido)}** | CMV: **{formato_gs(cmv_pedido_estimado)}** | Ganancia Bruta: **{formato_gs(ganancia_bruta_est)}**")
-        estado_ped = st.selectbox("Estado del Pedido", ["Pendiente", "En Preparación", "En Camino / Enviado", "Entregado / Pagado", "Cancelado"])
+        estado_ped = st.selectbox("Estado del Pedido", ["Pendiente", "En Preparación", "En Camino / Enviado", "Entregado / Pagado", "Cancelado"], key="reg_estado")
 
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     
@@ -371,9 +559,9 @@ with tab_registro:
     
     cp1, cp2, cp3 = st.columns(3)
     with cp1:
-        medio_pago_seña = st.selectbox("Medio de Cobro de Seña", ["Efectivo", "Transferencia SIPAP", "Billetera Digital", "Tarjeta Débito/Crédito", "Sin Seña"])
+        medio_pago_seña = st.selectbox("Medio de Cobro de Seña", ["Efectivo", "Transferencia SIPAP", "Billetera Digital", "Tarjeta Débito/Crédito", "Sin Seña"], key="reg_medio_sena")
     with cp2:
-        monto_sena = st.number_input("Seña Inicial Cobrada (Gs.)", min_value=0, max_value=monto_total_pedido, value=0, step=5000, format="%d")
+        monto_sena = st.number_input("Seña Inicial Cobrada (Gs.)", min_value=0, max_value=monto_total_pedido, value=0, step=5000, format="%d", key="reg_monto_sena")
         st.caption(f"Seña asentada: **{formato_gs(monto_sena)}**")
     with cp3:
         saldo_pendiente = max(0, monto_total_pedido - monto_sena)
@@ -385,7 +573,7 @@ with tab_registro:
             </div>
         """, unsafe_allow_html=True)
 
-    # SECCIÓN: LOGÍSTICA Y ENVÍOS (GASTOS OPERATIVOS)
+    # SECCIÓN: LOGÍSTICA Y ENVÍOS
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     st.markdown("""
         <div style="background-color: #0b1329; border: 1px solid #1e293b; padding: 14px 18px; border-radius: 12px; margin-bottom: 15px;">
@@ -395,16 +583,16 @@ with tab_registro:
     
     cl1, cl2, cl3 = st.columns(3)
     with cl1:
-        empresa_envio = st.selectbox("Transportadora / Medio", ["Retiro en Local", "AEX", "NSA Encomiendas", "Rysa", "Delivery Local (Moto)", "Otra Encomienda"])
+        empresa_envio = st.selectbox("Transportadora / Medio", ["Retiro en Local", "AEX", "NSA Encomiendas", "Rysa", "Delivery Local (Moto)", "Otra Encomienda"], key="reg_transp")
     with cl2:
-        costo_envio = st.number_input("Costo Envío / Flete (Gs.)", min_value=0, value=0, step=5000, format="%d")
+        costo_envio = st.number_input("Costo Envío / Flete (Gs.)", min_value=0, value=0, step=5000, format="%d", key="reg_costo_env")
         st.caption(f"Flete: **{formato_gs(costo_envio)}**")
     with cl3:
-        quien_paga_envio = st.selectbox("¿Quién asume el envío?", ["Cliente (Paga al recibir / Sumado)", "Negocio (Envío Gratis / Promoción)", "Sin Costo de Envío"])
+        quien_paga_envio = st.selectbox("¿Quién asume el envío?", ["Cliente (Paga al recibir / Sumado)", "Negocio (Envío Gratis / Promoción)", "Sin Costo de Envío"], key="reg_quien_paga")
 
-    comprobante_ped = st.file_uploader("Comprobante de Seña / Guía de Despacho (Opcional)", type=["png", "jpg", "jpeg", "pdf"], key="comp_ped_nuevo")
+    comprobante_ped = st.file_uploader("Comprobante de Seña / Guía de Despacho (Opcional)", type=["png", "jpg", "jpeg", "pdf"], key="comp_ped_reg")
     
-    btn_crear_ped = st.button("💾 ASENTAR PEDIDO & VINCULAR CONTABILIDAD", use_container_width=True)
+    btn_crear_ped = st.button("💾 ASENTAR PEDIDO & VINCULAR CONTABILIDAD", use_container_width=True, key="btn_asentar_reg")
     
     if btn_crear_ped:
         if modelo_ped.strip() and cliente_ped.strip():
@@ -433,22 +621,18 @@ with tab_registro:
                 res_ped = supabase.table("pedidos_inventario").insert(nuevo_pedido).execute()
                 pedido_creado_id = res_ped.data[0]["id"] if (res_ped.data and len(res_ped.data) > 0) else "N/A"
                 
-                # VINCULACIÓN 1: Ingreso a Caja si hubo seña
                 if monto_sena > 0:
-                    ingreso_caja = {
+                    supabase.table("transacciones").insert({
                         "fecha": str(fecha_ped),
                         "tipo": "Ingreso",
                         "categoria": "Ventas de Prendas",
                         "monto": int(monto_sena),
                         "descripcion": f"Seña Pedido #{pedido_creado_id} | {modelo_ped.strip()} ({cliente_ped.strip()}) [{medio_pago_seña}]"
-                    }
-                    supabase.table("transacciones").insert(ingreso_caja).execute()
-                    st.toast(f"✅ Caja de Negocio: Seña de {formato_gs(monto_sena)} ingresada.")
+                    }).execute()
 
-                # VINCULACIÓN 2: Cuentas por Cobrar (Deudas) si hay saldo
                 if saldo_pendiente > 0:
                     fecha_limite = (datetime.strptime(str(fecha_ped), "%Y-%m-%d").date() + timedelta(days=15))
-                    cuenta_cobrar = {
+                    supabase.table("deudas").insert({
                         "fecha": str(fecha_ped),
                         "tipo": "Por Cobrar (Cliente me debe)",
                         "cliente": cliente_ped.strip(),
@@ -457,21 +641,16 @@ with tab_registro:
                         "forma_pago": medio_pago_seña if medio_pago_seña != "Sin Seña" else "Efectivo",
                         "fecha_vencimiento": str(fecha_limite),
                         "estado": "Pendiente"
-                    }
-                    supabase.table("deudas").insert(cuenta_cobrar).execute()
-                    st.toast(f"💳 Cuentas por Cobrar: Saldo de {formato_gs(saldo_pendiente)} asentado.")
+                    }).execute()
 
-                # VINCULACIÓN 3: Flete asumido como Egreso en Caja
                 if quien_paga_envio == "Negocio (Envío Gratis / Promoción)" and costo_envio > 0:
-                    egreso_envio = {
+                    supabase.table("transacciones").insert({
                         "fecha": str(fecha_ped),
                         "tipo": "Egreso",
                         "categoria": "Packaging / Envíos",
                         "monto": int(costo_envio),
                         "descripcion": f"Flete {empresa_envio} Pedido #{pedido_creado_id}: {modelo_ped.strip()} ({cliente_ped.strip()})"
-                    }
-                    supabase.table("transacciones").insert(egreso_envio).execute()
-                    st.toast(f"🚚 Flete absorbido de {formato_gs(costo_envio)} registrado en Caja.")
+                    }).execute()
 
                 cargar_pedidos.clear()
                 st.success(f"¡Pedido #{pedido_creado_id} registrado exitosamente con sincronización financiera total!")
@@ -479,7 +658,7 @@ with tab_registro:
             except Exception as e:
                 st.error(f"Error al registrar pedido o sincronizar módulos: {e}")
         else:
-            st.warning("Complete el nombre del cliente y el modelo de la prenda para continuar.")
+            st.warning("Completá el nombre del cliente y el modelo de la prenda para continuar.")
 
 # -------------------------------------------------------------------------
 # TAB 2: CATÁLOGO Y REPORTES EJECUTIVOS (EXCEL / PDF)
@@ -491,9 +670,8 @@ with tab_catalogo:
 
         with col_tit_cat:
             st.markdown("### 📋 Registro General de Pedidos & Rentabilidad")
-            st.caption("Visualiza, audita y descarga en Excel o formato imprimible con análisis de márgenes.")
+            st.caption("Visualizá, auditá y descargá en Excel o formato imprimible con análisis de márgenes.")
 
-        # Tabla visual completa
         cols_mostrar = [
             "id", "fecha", "cliente", "modelo_prenda", "talle", 
             "cantidad_n", "costo_cpp", "precio_n", "facturacion_bruta", 
@@ -515,7 +693,6 @@ with tab_catalogo:
         df_grid["GAN. OPERATIVA (GS)"] = df_grid["GAN. OPERATIVA (GS)"].apply(formato_gs)
         df_grid["MARGEN %"] = df_grid["MARGEN %"].apply(lambda x: f"{x}%")
 
-        # 1. Exportación Excel (.xlsx)
         buffer_excel = io.BytesIO()
         with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
             df_pedidos.to_excel(writer, index=False, sheet_name='Pedidos_Detallados')
@@ -530,7 +707,6 @@ with tab_catalogo:
                 use_container_width=True
             )
 
-        # 2. Exportación PDF Imprimible (AGL STORE)
         with col_btn_exp2:
             fecha_hoy_corte = datetime.now().strftime('%d/%m/%Y')
             df_impresion = df_pedidos.sort_values(by="id", ascending=True)
@@ -657,13 +833,13 @@ with tab_edicion:
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     if not df_pedidos.empty:
         st.markdown("### ⚙️ Modificar o Actualizar Pedido Completo")
-        st.caption("Selecciona cualquier registro para corregir costos, estado o precios.")
+        st.caption("Seleccioná cualquier registro para corregir costos, estado o precios.")
         
         opciones_pedidos = {
             f"ID #{row['id']} | {row.get('cliente', '')} ({row.get('modelo_prenda', '')})": row['id']
             for _, row in df_pedidos.iterrows()
         }
-        pedido_seleccionado_txt = st.selectbox("Seleccione el pedido:", list(opciones_pedidos.keys()))
+        pedido_seleccionado_txt = st.selectbox("Seleccione el pedido:", list(opciones_pedidos.keys()), key="ed_sel_ped")
         sel_ped_id = opciones_pedidos[pedido_seleccionado_txt]
         
         fila_ped = df_pedidos[df_pedidos["id"] == sel_ped_id].iloc[0]
@@ -697,7 +873,6 @@ with tab_edicion:
 
             c_bt1, c_bt2 = st.columns(2)
             if c_bt1.form_submit_button("🔄 ACTUALIZAR ESTADO Y DATOS", use_container_width=True):
-                # Recalcular recargo porcentual
                 markup_nuevo = int(round(((ed_precio - ed_costo) / ed_costo * 100))) if ed_costo > 0 else 0
                 datos_actualizados = {
                     "fecha": str(ed_fecha),
@@ -740,7 +915,6 @@ with tab_calculadora:
     st.caption("Consolidación contable de costos unitarios de entrada, margen de comercialización y absorción de fletes.")
 
     if not df_pedidos.empty:
-        # Tabla resumen por modelo
         resumen_modelo = df_pedidos.groupby("modelo_prenda").agg({
             "cantidad_n": "sum",
             "costo_cpp": "first",
@@ -763,7 +937,6 @@ with tab_calculadora:
             0.0
         ).round(1)
 
-        # Formato visual
         resumen_vis = resumen_modelo.copy()
         resumen_vis.columns = [
             "MODELO", "UNIDADES", "CPP UNITARIO", "FACTURACIÓN",
