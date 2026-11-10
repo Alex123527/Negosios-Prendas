@@ -225,20 +225,26 @@ if "presupuesto_personal" not in st.session_state:
 
 
 
+# Inicialización y control del presupuesto mensual
+if "presupuesto_mensual" not in st.session_state:
+    st.session_state["presupuesto_mensual"] = 3500000
+
 with st.sidebar:
     st.markdown("### ⚙️ Meta Financiera")
     nuevo_tope = st.number_input(
         "Presupuesto Mensual (Gs.):",
         min_value=500000,
         max_value=50000000,
-        value=int(st.session_state["presupuesto_mensual"]),
+        value=int(st.session_state.get("presupuesto_mensual", 3500000)),
         step=100000,
         format="%d",
         key="input_presupuesto_sidebar"
     )
-    if nuevo_tope != st.session_state["presupuesto_mensual"]:
+    if nuevo_tope != st.session_state.get("presupuesto_mensual", 3500000):
         st.session_state["presupuesto_mensual"] = nuevo_tope
         st.rerun()
+
+PRESUPUESTO_MENSUAL = st.session_state.get("presupuesto_mensual", 3500000)
 
 PRESUPUESTO_MENSUAL = st.session_state["presupuesto_mensual"]
 
